@@ -475,9 +475,18 @@
 .builder-comparison .comparison-flat{color:#687c90}
 .builder-comparison .trade-action.buy{background:#e6f3ec;color:var(--quote-up)}
 .builder-comparison .trade-action.sell{background:#fbecee;color:var(--quote-down)}
-.view-tabs{display:flex;gap:6px;margin:0 0 18px;border-bottom:1px solid #dfe6ee}
-.view-tabs button{display:inline-flex;align-items:center;gap:8px;padding:11px 16px;border:0;border-bottom:3px solid transparent;margin-bottom:-1px;background:none;color:#607a90;font-size:14px;font-weight:650}
-.view-tabs button[aria-selected="true"]{color:#2f5f9e;border-bottom-color:#2f5f9e}
-.view-tabs button:hover:not(:disabled){color:#2f5f9e}
-.view-tabs button:disabled{opacity:.45;cursor:not-allowed}
+.view-tabs{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 18px;border-bottom:1px solid #dfe6ee}
+.view-tabs [role=tablist]{display:flex;gap:6px;flex-wrap:wrap}
+.view-tabs [role=tab]{display:inline-flex;align-items:center;gap:8px;padding:11px 16px;border:0;border-bottom:3px solid transparent;margin-bottom:-1px;background:none;color:#607a90;font-size:14px;font-weight:650}
+.view-tabs [role=tab][aria-selected="true"]{color:#2f5f9e;border-bottom-color:#2f5f9e}
+.view-tabs [role=tab]:hover:not(:disabled){color:#2f5f9e}
+.view-tabs [role=tab]:disabled{opacity:.45;cursor:not-allowed}
 .comparison-tab{margin-top:0;padding-top:8px}
+.table-export{position:relative;margin-bottom:6px}
+.table-export-trigger{display:inline-flex;align-items:center;gap:8px;padding:8px 13px;border:1px solid #c9d6e3;border-radius:8px;background:#fff;color:#2f5f9e;font-size:13px;font-weight:650}
+.table-export-trigger:hover:not(:disabled){border-color:#2f5f9e}
+.table-export-trigger:disabled{opacity:.45;cursor:not-allowed}
+.table-export-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:30;min-width:260px;white-space:nowrap;padding:6px;background:#fff;border:1px solid #cbd8e4;border-radius:9px;box-shadow:0 12px 32px #24415a24;display:grid;gap:2px}
+.table-export-menu button{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 11px;border:0;border-radius:6px;background:none;color:#344f63;font-size:13px;font-weight:600;text-align:left}
+.table-export-menu button:hover{background:#f0f5fa}
+.table-export-menu small{color:#7d8f9f;font-size:10px;font-weight:650;letter-spacing:.06em}

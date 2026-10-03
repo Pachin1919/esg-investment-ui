@@ -4,6 +4,8 @@ import { fetchCompanies, fetchFilterOptions, recommendPortfolio } from "./api";
 import type { Recommendation, SectorOption } from "./api";
 import Brand from "./Brand";
 import Comparison from "./Comparison";
+import { performanceCsv, positionsCsv, recommendedPositionsCsv } from "./comparisonExport";
+import ExportTablesMenu from "./ExportTablesMenu";
 import ImportFlow from "./ImportFlow";
 import { holdingsRequest, lookupIn, marketOf, newCapital, recommendedPortfolio, samplePortfolio, withPrices } from "./live";
 import type { Plan, Universe } from "./live";
@@ -104,9 +106,15 @@ export default function Workbench({ entry, onHome }: { entry: "demo" | "resume" 
       {p && universe && view === "recommendations" && <div className="workspace-page recommendations-page">
         <div className="workspace-heading recommendations-heading"><div><span className="workspace-eyebrow">RECOMMENDATIONS</span><h1>Build your recommended portfolio.</h1><p>Choose your industries. The engine balances risk, greenness and trading cost.</p></div><div className="recommendation-heading-actions"><Button onClick={() => setExportOpen(true)}><DownloadSimple size={18} />Export portfolio</Button></div></div>
         <div className="recommendation-summary"><RiskBadge value={state.risk} /><HighlightBadge variant="green">Green preference · Level {state.green}</HighlightBadge><HighlightBadge variant="budget">Maximum investment · {money(state.maxInvestment, currency)}</HighlightBadge><button onClick={() => go("settings")}>Edit settings</button></div>
-        <div className="view-tabs" role="tablist" aria-label="Recommendation views">
+        <div className="view-tabs"><div role="tablist" aria-label="Recommendation views">
           <button role="tab" id="tab-builder" aria-selected={recTab === "builder"} aria-controls="panel-builder" onClick={() => setRecTab("builder")}><Sparkle size={17} />Recommended portfolio</button>
           <button role="tab" id="tab-comparison" aria-selected={recTab === "comparison"} aria-controls="panel-comparison" onClick={() => setRecTab("comparison")} disabled={!result || !rec}><ArrowsLeftRight size={17} />Compare with current portfolio</button>
+          </div>
+          <ExportTablesMenu disabled={!result || !rec} items={[
+            { label: "Recommended positions", onExport: () => { download("recommended-positions.csv", recommendedPositionsCsv(rec!, universe, currency)); setNotice("Recommended positions exported."); } },
+            { label: "Portfolio performance", onExport: () => { download("portfolio-performance.csv", performanceCsv(p, result!, rec!)); setNotice("Portfolio performance exported."); } },
+            { label: "Each company / share", onExport: () => { download("company-shares.csv", positionsCsv(rec!, universe, currency)); setNotice("Company table exported."); } },
+          ]} />
         </div>
         {/* the builder stays mounted so an unsaved setup survives a look at the tables */}
         <div role="tabpanel" id="panel-builder" aria-labelledby="tab-builder" hidden={recTab !== "builder"}>
