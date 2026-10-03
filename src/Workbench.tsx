@@ -38,6 +38,7 @@ export default function Workbench({ entry, onHome }: { entry: "demo" | "resume" 
   const [uploadOpen, setUploadOpen] = useState(false), [exportOpen, setExportOpen] = useState(false);
   const [exportFormat, setExportFormat] = useState<ExportFormat>("pdf"), [exportBusy, setExportBusy] = useState(false);
   const [notice, setNotice] = useState("");
+  const [recTab, setRecTab] = useState<"builder" | "comparison">("builder");
   useEffect(() => { try { localStorage.setItem(storageKey, JSON.stringify(state)); } catch { /* Continue without persistence. */ } }, [state]);
   useEffect(() => { if (!notice) return; const id = window.setTimeout(() => setNotice(""), 4000); return () => window.clearTimeout(id); }, [notice]);
 
@@ -103,8 +104,15 @@ export default function Workbench({ entry, onHome }: { entry: "demo" | "resume" 
       {p && universe && view === "recommendations" && <div className="workspace-page recommendations-page">
         <div className="workspace-heading recommendations-heading"><div><span className="workspace-eyebrow">RECOMMENDATIONS</span><h1>Build your recommended portfolio.</h1><p>Choose your industries. The engine balances risk, greenness and trading cost.</p></div><div className="recommendation-heading-actions"><Button onClick={() => setExportOpen(true)}><DownloadSimple size={18} />Export portfolio</Button></div></div>
         <div className="recommendation-summary"><RiskBadge value={state.risk} /><HighlightBadge variant="green">Green preference · Level {state.green}</HighlightBadge><HighlightBadge variant="budget">Maximum investment · {money(state.maxInvestment, currency)}</HighlightBadge><button onClick={() => go("settings")}>Edit settings</button></div>
-        <RecommendationsBuilder key={stored ? stored.name + stored.holdings.length : ""} baseline={p} universe={universe} sectors={sectors} maximum={state.maxInvestment} plan={state.plan} rec={rec} portfolio={result} loading={loading} error={recError} onPlanChange={plan => setState(s => ({ ...s, plan }))} />
-        {result && rec && <details className="workspace-panel builder-comparison" open><summary><ArrowsLeftRight size={20} /><strong>Compare with your current portfolio</strong><span>Old vs. new holdings & performance</span></summary><Comparison baseline={p} result={result} rec={rec} universe={universe} /></details>}
+        <div className="view-tabs" role="tablist" aria-label="Recommendation views">
+          <button role="tab" id="tab-builder" aria-selected={recTab === "builder"} aria-controls="panel-builder" onClick={() => setRecTab("builder")}><Sparkle size={17} />Recommended portfolio</button>
+          <button role="tab" id="tab-comparison" aria-selected={recTab === "comparison"} aria-controls="panel-comparison" onClick={() => setRecTab("comparison")} disabled={!result || !rec}><ArrowsLeftRight size={17} />Compare with current portfolio</button>
+        </div>
+        {/* the builder stays mounted so an unsaved setup survives a look at the tables */}
+        <div role="tabpanel" id="panel-builder" aria-labelledby="tab-builder" hidden={recTab !== "builder"}>
+          <RecommendationsBuilder key={stored ? stored.name + stored.holdings.length : ""} baseline={p} universe={universe} sectors={sectors} maximum={state.maxInvestment} plan={state.plan} rec={rec} portfolio={result} loading={loading} error={recError} onPlanChange={plan => setState(s => ({ ...s, plan }))} />
+        </div>
+        {recTab === "comparison" && result && rec && <section role="tabpanel" id="panel-comparison" aria-labelledby="tab-comparison" className="workspace-panel builder-comparison comparison-tab"><Comparison baseline={p} result={result} rec={rec} universe={universe} /></section>}
       </div>}
       {view === "settings" && <Settings risk={state.risk} green={state.green} maxInvestment={state.maxInvestment} currency={currency} onSave={(risk, green, maxInvestment) => { setState(s => ({ ...s, risk, green, maxInvestment })); setNotice("Settings saved."); }} />}
     </main></div>
