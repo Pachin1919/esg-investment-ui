@@ -1,14 +1,15 @@
 import type { PortfolioStats as Stats } from "./api";
 
-const FACTORS: [string, string][] = [
-  ["mkt_rf", "Market beta"],
-  ["smb", "Size · SMB"],
-  ["hml", "Value · HML"],
-  ["rmw", "Profitability · RMW"],
-  ["cma", "Investment · CMA"],
-  ["mom", "Momentum · MOM"],
-  ["gmb", "Green · GMB"],
-];
+const FACTORS: Record<string, string> = {
+  mkt_rf: "Market beta",
+  smb: "Size · SMB",
+  hml: "Value · HML",
+  rmw: "Profitability · RMW",
+  cma: "Investment · CMA",
+  mom: "Momentum · MOM",
+  gmb: "Green · GMB",
+};
+const MARKETS: Record<string, string> = { hk: "Hong Kong", tw: "Taiwan" };
 
 type Row = { label: string; before: number | null; after: number | null; fmt: (x: number) => string; group?: string };
 const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
@@ -24,13 +25,17 @@ export function PortfolioStats({ before, after, volTarget }: { before: Stats; af
     { label: "Positions", before: before.n_positions, after: after.n_positions, fmt: dec(0), group: "Concentration" },
     { label: "Largest position", before: before.top_weight, after: after.top_weight, fmt: pct },
     { label: "Effective positions (equal-weight equivalent)", before: before.effective_n, after: after.effective_n, fmt: dec(1) },
-    ...FACTORS.filter(([k]) => k in before.exposures || k in after.exposures).map(([k, label], i) => ({
-      label,
-      before: before.exposures[k] ?? null,
-      after: after.exposures[k] ?? null,
-      fmt: dec(2),
-      group: i === 0 ? "Factor exposures (portfolio beta)" : undefined,
-    })),
+    // pooled markets report one beta per market factor ("hk_mkt_rf", "tw_mkt_rf")
+    ...Object.keys({ ...before.exposures, ...after.exposures }).map((k, i) => {
+      const [, market, factor] = k.match(/^(?:(hk|tw)_)?(.+)$/)!;
+      return {
+        label: `${market ? `${MARKETS[market]} · ` : ""}${FACTORS[factor] ?? factor}`,
+        before: before.exposures[k] ?? null,
+        after: after.exposures[k] ?? null,
+        fmt: dec(2),
+        group: i === 0 ? "Factor exposures (portfolio beta)" : undefined,
+      };
+    }),
   ];
   return (
     <div className="portfolio-stats">
