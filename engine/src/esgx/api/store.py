@@ -62,7 +62,17 @@ class DataStore:
             "universe_hsi": self.raw / "universe_hsi.parquet",
             "universe_hsci": self.raw / "universe_hsci.parquet",
             "fundamentals_hk": self.raw / "fundamentals_yf_hk.parquet",
+            "prices_hk": self.raw / "prices_monthly_hk.parquet",
+            "factors_asia_pacific_ex_japan": self.raw / "factors_monthly_asia_pacific_ex_japan.parquet",
         }
+
+    def prices(self, market: str = "hk") -> pd.DataFrame:
+        path = self._paths().get(f"prices_{market}")
+        return self.table(path) if path else pd.DataFrame()
+
+    def factors(self, region: str = "asia_pacific_ex_japan") -> pd.DataFrame:
+        path = self._paths().get(f"factors_{region}")
+        return self.table(path) if path else pd.DataFrame()
 
     # ---------------------------------------------------------------- tables
     def firms(self) -> pd.DataFrame:

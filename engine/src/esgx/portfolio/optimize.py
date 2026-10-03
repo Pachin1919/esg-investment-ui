@@ -49,13 +49,19 @@ def mean_variance_green(
     lam: float = 0.0,
     gamma: float = 5.0,
     w_max: float = 0.10,
+    w0: pd.Series | None = None,
+    kappa: float = 0.0,
+    w_sum: float = 1.0,
 ) -> pd.Series:
-    """Optimal weights indexed by firm_id. z(g) enters the objective only; firms without
-    g get z = 0. Raises if the problem is infeasible (w_max * n < 1) or SLSQP fails."""
+    """Optimal weights indexed by firm_id, summing to `w_sum`. z(g) enters the objective
+    only; firms without g get z = 0. With `w0` (current weights) and `kappa` (penalty per
+    unit one-way turnover) the objective gains -kappa * sum|w - w0|, solved exactly via a
+    buy/sell split — no-change is the default unless a trade earns its keep. Raises if the
+    problem is infeasible (w_max * n < w_sum) or SLSQP fails."""
     names = mu.index
     n = len(names)
-    if w_max * n < 1.0:
-        raise ValueError(f"w_max={w_max} infeasible with {n} names (need w_max >= {1 / n:.3f})")
+    if w_max * n < w_sum - 1e-12:
+        raise ValueError(f"w_max={w_max} infeasible with {n} names (need w_max >= {w_sum / n:.3f})")
     S = cov.reindex(index=names, columns=names).to_numpy()
     m = mu.to_numpy(dtype=float)
     if g is not None:
@@ -64,16 +70,36 @@ def mean_variance_green(
     else:
         z = np.zeros(n)
 
-    def neg_utility(w: np.ndarray) -> float:
-        return float(-(w @ m - gamma / 2 * w @ S @ w + lam * w @ z))
+    if w0 is None or kappa <= 0.0:
+        def neg_utility(w: np.ndarray) -> float:
+            return float(-(w @ m - gamma / 2 * w @ S @ w + lam * w @ z))
 
-    res = minimize(
-        neg_utility,
-        np.full(n, 1.0 / n),
-        method="SLSQP",
-        bounds=[(0.0, w_max)] * n,
-        constraints=[{"type": "eq", "fun": lambda w: w.sum() - 1.0}],
-    )
+        res = minimize(
+            neg_utility,
+            np.full(n, w_sum / n),
+            method="SLSQP",
+            bounds=[(0.0, w_max)] * n,
+            constraints=[{"type": "eq", "fun": lambda w: w.sum() - w_sum}],
+        )
+    else:
+        w0v = w0.reindex(names).fillna(0.0).to_numpy()
+
+        def neg_utility_split(x: np.ndarray) -> float:  # x = [w, d+, d-], w - w0 = d+ - d-
+            w, dp, dm = x[:n], x[n : 2 * n], x[2 * n :]
+            return float(-(w @ m - gamma / 2 * w @ S @ w + lam * w @ z) + kappa * (dp.sum() + dm.sum()))
+
+        x0 = np.concatenate([np.full(n, w_sum / n), np.zeros(2 * n)])
+        res = minimize(
+            neg_utility_split,
+            x0,
+            method="SLSQP",
+            bounds=[(0.0, w_max)] * n + [(0.0, None)] * 2 * n,
+            constraints=[
+                {"type": "eq", "fun": lambda x: x[:n].sum() - w_sum},
+                {"type": "eq", "fun": lambda x: x[:n] - w0v - x[n : 2 * n] + x[2 * n :]},
+            ],
+        )
+        res.x = res.x[:n]
     if not res.success:
         raise RuntimeError(f"mean_variance_green optimizer failed: {res.message}")
     return pd.Series(res.x, index=names)

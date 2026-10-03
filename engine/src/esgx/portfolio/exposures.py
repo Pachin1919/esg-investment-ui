@@ -18,7 +18,9 @@ import pandas as pd
 from esgx.factors.timeseries import FF5_MOM, alpha_regression
 
 
-def _with_gmb(factors: pd.DataFrame, gmb: pd.DataFrame, gmb_col: str) -> pd.DataFrame:
+def _with_gmb(factors: pd.DataFrame, gmb: pd.DataFrame | None, gmb_col: str) -> pd.DataFrame:
+    if gmb is None:
+        return factors
     return factors.merge(gmb[["month", gmb_col]].rename(columns={gmb_col: "gmb"}), on="month", how="left")
 
 
@@ -37,25 +39,26 @@ def _rolling_betas(y: np.ndarray, X: np.ndarray, window: int, min_obs: int) -> n
 def green_exposures(
     panel: pd.DataFrame,
     factors: pd.DataFrame,
-    gmb: pd.DataFrame,
+    gmb: pd.DataFrame | None = None,
     gmb_col: str = "gmb",
     xs: list[str] | None = None,
     window: int = 60,
     min_obs: int = 36,
 ) -> pd.DataFrame:
     """Rolling betas per firm. `panel`: firm x month with ret. Returns firm x month with
-    alpha, b_<x> per factor and b_gmb; the first `min_obs` months per firm are NaN (warmup)."""
-    xs = xs or FF5_MOM
+    alpha, b_<x> per factor and b_gmb (omitted when `gmb` is None); the first `min_obs`
+    months per firm are NaN (warmup)."""
+    xs = list(xs or FF5_MOM) + (["gmb"] if gmb is not None else [])
     fac = _with_gmb(factors, gmb, gmb_col)
     df = panel.merge(fac, on="month", how="left").sort_values(["firm_id", "month"])
     df["exret"] = df["ret"] - df["rf"]
-    cols = ["alpha"] + [f"b_{x}" for x in xs] + ["b_gmb"]
+    cols = ["alpha"] + [f"b_{x}" for x in xs]
     out = []
     for fid, gdf in df.groupby("firm_id"):
-        sub = gdf.dropna(subset=["exret"] + xs + ["gmb"])
+        sub = gdf.dropna(subset=["exret"] + xs)
         if len(sub) < min_obs:
             continue
-        b = _rolling_betas(sub["exret"].to_numpy(), sub[xs + ["gmb"]].to_numpy(), window, min_obs)
+        b = _rolling_betas(sub["exret"].to_numpy(), sub[xs].to_numpy(), window, min_obs)
         res = pd.DataFrame(b, columns=cols)
         res["firm_id"], res["month"] = fid, sub["month"].values
         out.append(res)
@@ -69,7 +72,7 @@ def green_exposures(
 def exposure_snapshot(
     panel: pd.DataFrame,
     factors: pd.DataFrame,
-    gmb: pd.DataFrame,
+    gmb: pd.DataFrame | None = None,
     gmb_col: str = "gmb",
     xs: list[str] | None = None,
     at: str | None = None,
@@ -77,8 +80,8 @@ def exposure_snapshot(
 ) -> pd.DataFrame:
     """Full-sample (or ending at month `at`, e.g. "2025-12") betas per firm, via
     `factors.timeseries.alpha_regression`. Indexed by firm_id; columns alpha, t_alpha,
-    r2, n, b_<x>, b_gmb."""
-    xs = xs or FF5_MOM
+    r2, n, idio_var, b_<x>, b_gmb (b_gmb only when `gmb` is given)."""
+    xs = list(xs or FF5_MOM) + (["gmb"] if gmb is not None else [])
     fac = _with_gmb(factors, gmb, gmb_col)
     df = panel.merge(fac[["month", "rf"]], on="month", how="left")
     df["exret"] = df["ret"] - df["rf"]
@@ -88,5 +91,5 @@ def exposure_snapshot(
     for fid, gdf in df.groupby("firm_id"):
         if gdf["exret"].notna().sum() < min_obs:
             continue
-        rows[fid] = alpha_regression(gdf[["month", "exret"]], fac, y="exret", xs=xs + ["gmb"])
+        rows[fid] = alpha_regression(gdf[["month", "exret"]], fac, y="exret", xs=xs)
     return pd.DataFrame(rows).T.rename_axis("firm_id")

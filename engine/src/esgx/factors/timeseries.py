@@ -14,6 +14,7 @@ def alpha_regression(series: pd.DataFrame, factors: pd.DataFrame, y: str, xs: li
     X = sm.add_constant(df[xs].astype(float))
     fit = sm.OLS(df[y].astype(float), X).fit(cov_type="HAC", cov_kwds={"maxlags": nw_lags})
     out = {"alpha": fit.params["const"], "t_alpha": fit.tvalues["const"], "r2": fit.rsquared, "n": int(fit.nobs)}
+    out["idio_var"] = float(fit.resid.var(ddof=len(xs) + 1))  # residual variance, D in the factor-model Sigma
     for x in xs:
         out[f"b_{x}"] = fit.params[x]
     return pd.Series(out)

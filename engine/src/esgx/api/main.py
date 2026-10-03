@@ -16,6 +16,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from esgx.api.pipeline_routes import router as pipeline_router
+from esgx.api.portfolio_routes import router as portfolio_router
 from esgx.api.store import DataStore, records
 
 app = FastAPI(title="ESG Exposure Engine API", version="0.1.0")
@@ -28,6 +29,7 @@ app.add_middleware(
 
 _store = DataStore()
 app.include_router(pipeline_router)
+app.include_router(portfolio_router)
 
 
 def get_store() -> DataStore:

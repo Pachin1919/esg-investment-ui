@@ -1,5 +1,6 @@
 """API contract tests on synthetic tables in a temp directory (no real data needed)."""
 
+import numpy as np
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
@@ -117,3 +118,76 @@ def test_api_pipeline_routes(tmp_path, monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("MOONSHOT_API_KEY", raising=False)
     assert c.post("/api/pipeline/runs", json={"spec": d, "tickers": ["0005.HK"], "mode": "live"}).status_code == 400
+
+
+def _portfolio_store(tmp_path):
+    """Store with synthetic prices, factors and greenness covering the GMB path."""
+    out, proc, raw = tmp_path / "o2", tmp_path / "p2", tmp_path / "r2"
+    for d in (out, proc, raw):
+        d.mkdir()
+    rng = np.random.default_rng(0)
+    n, T = 35, 60
+    months = pd.period_range("2021-01", periods=T, freq="M").astype(str)
+    fac = pd.DataFrame({
+        "month": months, "mkt_rf": rng.normal(0.004, 0.04, T), "smb": rng.normal(0, 0.02, T),
+        "hml": rng.normal(0, 0.02, T), "rmw": rng.normal(0, 0.02, T), "cma": rng.normal(0, 0.02, T),
+        "mom": rng.normal(0, 0.02, T), "rf": 0.002,
+    })
+    fac.to_parquet(raw / "factors_monthly_asia_pacific_ex_japan.parquet")
+    rows = []
+    for i in range(n):
+        for t, m in enumerate(months):
+            rows.append({"firm_id": f"F{i:03d}.HK", "month": m,
+                         "ret": 0.004 + 0.9 * fac.loc[t, "mkt_rf"] + rng.normal(0, 0.03),
+                         "mktcap": 1e9 * (1 + i / n)})
+    pd.DataFrame(rows).to_parquet(raw / "prices_monthly_hk.parquet")
+    green = pd.DataFrame({
+        "firm_id": [f"F{i:03d}.HK" for i in range(n)] * 2,
+        "year": [2021] * n + [2022] * n,
+        "provider": "walk_hard",
+        "e_score": [10 * i / (n - 1) for i in range(n)] * 2,
+        "e_weight": 30.0,
+        "g": [-3.0 * (1 - i / (n - 1)) for i in range(n)] * 2,
+        "g_across": -1.5, "g_within": 0.0,
+    })
+    green.to_csv(out / "det_greenness_hk.csv", index=False)
+    return DataStore(outputs=out, processed=proc, raw=raw)
+
+
+def test_portfolio_recommend_needs_data(tmp_path):
+    from esgx.api import portfolio_routes as pr
+
+    store = DataStore(outputs=tmp_path / "o", processed=tmp_path / "p", raw=tmp_path / "r")
+    app.dependency_overrides[pr._store] = lambda: store
+    try:
+        r = TestClient(app).post("/api/portfolio/recommend",
+                                 json={"holdings": {"0001.HK": 100.0}})
+        assert r.status_code == 503
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_portfolio_recommend_end_to_end(tmp_path):
+    from esgx.api import portfolio_routes as pr
+
+    store = _portfolio_store(tmp_path)
+    app.dependency_overrides[pr._store] = lambda: store
+    try:
+        c = TestClient(app)
+        r = c.post("/api/portfolio/recommend", json={
+            "holdings": {"F000.HK": 5000.0, "F001.HK": 3000.0, "UNKNOWN": 2000.0},
+            "risk_score": 2, "green_score": 5, "kappa": 0.0,
+        })
+        assert r.status_code == 200, r.json()
+        d = r.json()
+        assert d["params"]["gamma"] == 8.0 and d["params"]["lam"] == 2.0
+        assert d["after"]["g_avg"] > d["before"]["g_avg"]
+        assert d["after"]["b_gmb"] is not None  # GMB path active (35 names, 24+ months)
+        assert d["coverage"]["n_modeled"] == 35 and d["coverage"]["gmb_months"] >= 24
+        assert [u["firm_id"] for u in d["unmodeled"]] == ["UNKNOWN"]
+        buys = [t for t in d["trades"] if t["side"] == "buy"]
+        assert buys and all(t["capital_delta"] > 0 for t in buys)
+        assert abs(sum(t["capital_delta"] for t in d["trades"])) < 1e-6
+        assert c.post("/api/portfolio/recommend", json={"holdings": {"F000.HK": 1}, "risk_score": 9}).status_code == 422
+    finally:
+        app.dependency_overrides.clear()
