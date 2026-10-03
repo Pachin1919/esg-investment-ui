@@ -10,6 +10,7 @@ without the parts this project does not need (auth, database, cloud).
 
 from __future__ import annotations
 
+import os
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Query
@@ -20,9 +21,12 @@ from esgx.api.portfolio_routes import router as portfolio_router
 from esgx.api.store import DataStore, records
 
 app = FastAPI(title="ESG Exposure Engine API", version="0.1.0")
+# Comma-separated origins the dashboard may be served from (the UI repo is hosted separately).
+CORS_ORIGINS = [o.strip() for o in os.environ.get(
+    "ESGX_CORS_ORIGINS", "http://localhost:8001,http://127.0.0.1:8001,http://[::1]:8001").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8001", "http://127.0.0.1:8001", "http://[::1]:8001"],
+    allow_origins=CORS_ORIGINS,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
@@ -49,14 +53,19 @@ def firms(store: Store) -> list[dict]:
     return records(store.firms())
 
 
+def _market_of(firm_id: str) -> str:
+    return "tw" if firm_id.upper().endswith((".TW", ".TWO")) else "hk"
+
+
 @app.get("/api/firms/{firm_id}")
 def firm(firm_id: str, store: Store) -> dict:
     firms = store.firms()
     row = firms[firms["firm_id"] == firm_id]
     if row.empty:
         raise HTTPException(404, f"unknown firm {firm_id}")
-    em = store.emissions()
-    gr = store.greenness()
+    market = _market_of(firm_id)
+    em = store.emissions(market)
+    gr = store.greenness(market)
     tw = store.talkwalk_firm_year()
     docs = store.talkwalk_documents()
     return {
@@ -89,8 +98,9 @@ def greenness(
     store: Store,
     year: int | None = None,
     provider: str | None = None,
+    market: str = "hk",
 ) -> dict:
-    df = store.greenness()
+    df = store.greenness(market)
     if df.empty:
         return {"years": [], "providers": [], "year": None, "provider": None, "firms": [], "sectors": []}
     years = sorted(int(y) for y in df["year"].unique())
@@ -117,8 +127,8 @@ def greenness(
 
 
 @app.get("/api/gmb")
-def gmb(store: Store) -> dict:
-    df = store.gmb()
+def gmb(store: Store, market: str = "hk") -> dict:
+    df = store.gmb(market)
     if df.empty:
         return {"months": [], "summary": {}}
     summary = {}
@@ -135,7 +145,7 @@ def gmb(store: Store) -> dict:
 
 @app.get("/api/emissions/{firm_id}")
 def emissions(firm_id: str, store: Store) -> list[dict]:
-    em = store.emissions()
+    em = store.emissions(_market_of(firm_id))
     return records(em[em["firm_id"] == firm_id].sort_values("year")) if not em.empty else []
 
 

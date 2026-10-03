@@ -61,9 +61,16 @@ class DataStore:
             "emissions_hk": self.outputs / "emissions_hk.csv",
             "universe_hsi": self.raw / "universe_hsi.parquet",
             "universe_hsci": self.raw / "universe_hsci.parquet",
+            "universe_twse": self.raw / "universe_twse.parquet",
             "fundamentals_hk": self.raw / "fundamentals_yf_hk.parquet",
+            "fundamentals_tw": self.raw / "fundamentals_twse.parquet",
+            "greenness_tw": self.outputs / "det_greenness_tw.csv",
+            "gmb_monthly_tw": self.outputs / "gmb_monthly_tw.csv",
+            "emissions_tw": self.processed / "emissions_tw.parquet",
             "prices_hk": self.raw / "prices_monthly_hk.parquet",
+            "prices_tw": self.raw / "prices_monthly_tw.parquet",
             "factors_asia_pacific_ex_japan": self.raw / "factors_monthly_asia_pacific_ex_japan.parquet",
+            "factors_emerging": self.raw / "factors_monthly_emerging.parquet",
         }
 
     def prices(self, market: str = "hk") -> pd.DataFrame:
@@ -77,7 +84,7 @@ class DataStore:
     # ---------------------------------------------------------------- tables
     def firms(self) -> pd.DataFrame:
         frames = []
-        for key in ("universe_hsi", "universe_hsci"):
+        for key in ("universe_hsi", "universe_hsci", "universe_twse"):
             df = self.table(self._paths()[key])
             if not df.empty:
                 frames.append(df[["firm_id", "name", "sector", "industry", "country"]])
@@ -97,11 +104,13 @@ class DataStore:
     def talkwalk_documents(self) -> pd.DataFrame:
         return self.table(self._paths()["talkwalk_documents"])
 
-    def greenness(self) -> pd.DataFrame:
-        return self.table(self._paths()["greenness"])
+    def greenness(self, market: str = "hk") -> pd.DataFrame:
+        path = self._paths().get("greenness" if market == "hk" else f"greenness_{market}")
+        return self.table(path) if path else pd.DataFrame()
 
-    def gmb(self) -> pd.DataFrame:
-        df = self.table(self._paths()["gmb_monthly"])
+    def gmb(self, market: str = "hk") -> pd.DataFrame:
+        path = self._paths().get("gmb_monthly" if market == "hk" else f"gmb_monthly_{market}")
+        df = self.table(path) if path else pd.DataFrame()
         if df.empty:
             return df
         df = df.copy()
@@ -110,9 +119,10 @@ class DataStore:
                 df[f"cum_{c}"] = (1 + df[c].fillna(0)).cumprod() - 1
         return df
 
-    def emissions(self) -> pd.DataFrame:
-        """HK LLM-extracted rows (scope 1+2 from the firms' own HKEX reports), with revenue merged in."""
-        em = self.table(self._paths()["emissions_hk"])
+    def emissions(self, market: str = "hk") -> pd.DataFrame:
+        """Scope 1+2 rows for one market: HK LLM-extracted from HKEX reports, TW from the
+        exchanges' open ESG data; revenue merged in for intensity."""
+        em = self.table(self._paths()["emissions_hk"] if market == "hk" else self._paths()["emissions_tw"])
         cols = ["firm_id", "year", "scope1", "scope2", "scope3", "source", "matched"]
         if em.empty:
             return pd.DataFrame(columns=cols + ["scope12"])
@@ -121,7 +131,7 @@ class DataStore:
             em["matched"] = True
         em["matched"] = em["matched"].fillna(True).astype(bool)
         em["scope12"] = em["scope1"].fillna(0) + em["scope2"].fillna(0)
-        fu = self.table(self._paths()["fundamentals_hk"])
+        fu = self.table(self._paths()["fundamentals_hk"] if market == "hk" else self._paths()["fundamentals_tw"])
         if not fu.empty:
             em = em.merge(fu[["firm_id", "year", "revenue"]], on=["firm_id", "year"], how="left")
             em["intensity"] = em["scope12"] / em["revenue"]  # tCO2e per USD million revenue

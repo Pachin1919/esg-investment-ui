@@ -25,7 +25,7 @@ from esgx.schema import to_month
 
 router = APIRouter(prefix="/api")
 
-MARKET_REGION = {"hk": "asia_pacific_ex_japan", "us": "us"}
+MARKET_REGION = {"hk": "asia_pacific_ex_japan", "tw": "emerging", "us": "us"}
 
 
 def _store() -> DataStore:
@@ -39,6 +39,9 @@ class RecommendRequest(BaseModel):
     holdings: dict[str, float]
     risk_score: int = Field(3, ge=1, le=5)
     green_score: int = Field(3, ge=1, le=5)
+    max_new_capital: float = Field(0.0, ge=0.0)
+    vol_target: float | None = Field(None, gt=0.0, le=1.0)
+    g_target: float | None = Field(None, gt=0.0, lt=1.0)
     preferences: str | None = None
     kappa: float = Field(0.02, ge=0.0)
     w_max: float = Field(0.15, gt=0.0, le=1.0)
@@ -82,12 +85,16 @@ def recommend_portfolio(req: RecommendRequest, store: Store) -> dict:
     try:
         out = recommend(req.holdings, betas, g, f_mean, f_cov, betas["idio_var"],
                         risk_score=req.risk_score, green_score=req.green_score,
-                        kappa=req.kappa, w_max=req.w_max, universe=universe)
+                        kappa=req.kappa, max_new_capital=req.max_new_capital,
+                        vol_target=req.vol_target, g_target=req.g_target,
+                        w_max=req.w_max, universe=universe)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     return {
         "params": out["params"],
         "total_capital": out["total_capital"],
+        "new_capital": out["new_capital"],
+        "target_capital": out["target_capital"],
         "turnover": out["turnover"],
         "before": out["before"],
         "after": out["after"],
