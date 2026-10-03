@@ -1,26 +1,25 @@
 # Methodology: the papers behind the ESG Exposure Engine
 
 Every number the product produces traces to published research. This document lists the
-concepts we use, the paper each comes from, and exactly how it is implemented in the code.
-Pointers use `path:line`-free references to modules; the authoritative source is always the
-module docstring.
+concepts we use, the paper each comes from, and the part of the product where it lives —
+the E-scoring pipeline, the green factor, or the stock-recommendation engine.
 
-| Paper | Concept | Where in the product |
+| Paper | Concept | Part of the product |
 |---|---|---|
-| Pástor, Stambaugh & Taylor (2022, JFE) | Greenness `g`, GMB factor, across/within decomposition | `measures/greenness.py`, `factors/gmb.py`, `portfolio/exposures.py` |
-| Bolton & Kacperczyk (2021, JFE) | Carbon premium: emissions level *and* growth are priced | `factors/famamacbeth.py`, `measures/walk_hard.py` |
-| Crosignani, Osambela & Pritsker (2025) | Emission *intensity* as the priced characteristic | `measures/walk_hard.py` |
-| Fama & MacBeth (1973); Newey & West (1987) | Two-pass cross-sectional pricing; HAC standard errors | `factors/famamacbeth.py`, `factors/timeseries.py` |
-| Fama & French (2015); Carhart (1997) | FF5 + momentum risk model | `ingest/factors.py`, `factors/timeseries.py`, `factors/build_local.py` |
-| Jegadeesh & Titman (1993) | 12–2 momentum, skipping the most recent month | `factors/build_local.py` |
-| Merton (1980) | Sample mean returns are unusable; factor-based `mu` | `portfolio/optimize.py` |
-| Engle, Giglio, Kelly, Lee & Stroebel (2020, RFS) | Climate-news hedging; cosine similarity to climate vocabulary | `measures/text_measures.py`, `ingest/news_gdelt.py` |
-| Loughran & McDonald (2011, JF) | Finance-specific sentiment dictionary | `measures/text_measures.py` |
-| Giannetti et al. (2023) | Greenwashing = talk *given* walk; glossy-talk measure | `measures/residual.py`, `measures/standardize.py`, `measures/text_measures.py` |
-| Gourier & Mathurin (2025) | LLM prompt discipline; salience; low-threshold segment inclusion | `pipeline/tools/llm_sources.py`, `portfolio/screen.py`, `measures/talkwalk.py` |
-| Liang, Sun & Teo (2022); Chen (2022, 2025) | Words-vs-actions gap; talk/walk rubric dimensions | `measures/talkwalk.py`, `measures/greenwash.py` |
-| Berg, Koelbel & Rigobon (2022, RFS) | ESG ratings diverge (56% measurement, 38% scope, 6% weight) | Motivation for the deterministic design, `brain/PLAN.md` |
-| Bellon & Boualam | Tilting beats divestment | Long-only tilt as the default product, `portfolio/tilt.py` |
+| Pástor, Stambaugh & Taylor (2022, JFE) | Greenness `g`, GMB factor, across/within decomposition | E-scoring; green factor; portfolio exposures |
+| Bolton & Kacperczyk (2021, JFE) | Carbon premium: emissions level *and* growth are priced | Walk score; return tests |
+| Crosignani, Osambela & Pritsker (2025) | Emission *intensity* as the priced characteristic | Walk score |
+| Fama & MacBeth (1973); Newey & West (1987) | Two-pass cross-sectional pricing; HAC standard errors | Return tests; validation tables |
+| Fama & French (2015); Carhart (1997) | FF5 + momentum risk model | Risk model; stock recommendations |
+| Jegadeesh & Titman (1993) | 12–2 momentum, skipping the most recent month | Local factor construction (Taiwan) |
+| Merton (1980) | Sample mean returns are unusable; factor-based `mu` | Stock recommendations |
+| Engle, Giglio, Kelly, Lee & Stroebel (2020, RFS) | Climate-news hedging; climate vocabulary similarity | Talk score; news channel |
+| Loughran & McDonald (2011, JF) | Finance-specific sentiment dictionary | Talk score (glossiness) |
+| Giannetti et al. (2023) | Greenwashing = talk *given* walk; glossy-talk measure | Greenwashing detection |
+| Gourier & Mathurin (2025) | LLM prompt discipline; salience | All AI agents (extraction, scoring, screening) |
+| Liang, Sun & Teo (2022); Chen (2022, 2025) | Words-vs-actions gap; talk/walk rubric dimensions | Talk/walk scoring; greenwashing detection |
+| Berg, Koelbel & Rigobon (2022, RFS) | ESG ratings diverge (56% measurement, 38% scope, 6% weight) | Motivation for the deterministic design |
+| Bellon & Boualam | Tilting beats divestment | Stock recommendations (long-only tilt) |
 
 ---
 
@@ -32,18 +31,17 @@ module docstring.
 E_score (0–10) is the firm's environmental score and E_weight (0–100) is how material the
 environmental pillar is for the firm's *industry* (at MSCI, an expert judgment: Exxon ≈ 48,
 Best Buy ≈ 11). The weight stops a mediocre oil company and a mediocre retailer from looking
-equally green. PST decompose `g` into an across-industry part (`g_across`, the industry mean)
-and a within-industry part (`g_within`, the firm's deviation) — and find almost all of the
-green outperformance sits in the across component.
+equally green. PST decompose `g` into an across-industry part and a within-industry part —
+and find almost all of the green outperformance sits in the across component.
 
-**In the product.** `measures/greenness.py` implements the formula and the decomposition
-(`greenness_table`). Because we have no MSCI license, both inputs are computed from data:
-E_score **is the deterministic walk score** (percentile of emission intensity within
-industry × year, `scores_from_walk`), so one objective number feeds the greenwashing flag,
-greenness, the GMB factor and the return tests. E_weight is the industry's aggregate
-emission intensity, percentile-ranked across industries per year and mapped to 5–50
-(`industry_weight`). First Taiwan run: 1,960 companies, Cement 50 … Electronic Products
-Distribution 6.
+**In the product — the E-scoring step.** Our greenness score implements the formula and the
+decomposition directly. Because we have no MSCI license, both inputs are computed from
+data: the E_score **is our deterministic walk score** (the firm's emission-intensity
+percentile within its industry and year), so one objective number feeds the greenwashing
+flag, the greenness score, the green factor and the return tests. The E_weight is the
+industry's aggregate emission intensity, percentile-ranked across industries each year —
+a data-driven stand-in for MSCI's expert judgment. First Taiwan run: 1,960 companies
+scored, from Cement (weight 50) down to Electronic Products Distribution (6).
 
 ### Walk from hard data — Bolton & Kacperczyk (2021, JFE) and Crosignani, Osambela & Pritsker (2025)
 
@@ -52,12 +50,13 @@ emissions carry a return premium — so a walk measure must track level and tren
 Crosignani et al. show the priced characteristic is emission *intensity* (tCO2e / revenue),
 and model it as a random walk — one-year changes are mostly noise.
 
-**In the product.** `measures/walk_hard.py`: `walk` = percentile score of scope-1 intensity
-within industry × year (0–10). The trend components (`intensity_trend`, `emission_trend`)
+**In the product — the walk score.** What a firm demonstrably *does*, measured on registry
+and self-reported emissions with audited financials: the headline walk score is the firm's
+emission-intensity percentile within industry × year (0–10). The level and growth trends
 are computed and reported separately — per Crosignani they are noisy — but never blended
-into the headline walk score, because no paper blends them. Firms without registry-matched
-emissions get **no** walk score rather than a favourable one. Extra pillars (water, waste,
-renewable share) follow the same percentile design in `measures/walk_pillars.py`.
+into the headline number, because no paper blends them. Firms without hard data get **no**
+walk score rather than a favourable one. Additional pillars (water, waste, renewable
+share) follow the same percentile design.
 
 ### Greenwashing = talk *given* walk — Giannetti et al. (2023), Liang–Sun–Teo (2022), Chen (2025)
 
@@ -65,46 +64,46 @@ renewable share) follow the same percentile design in `measures/walk_pillars.py`
 of what the firm's actions explain*: Giannetti et al. compare disclosure to lending
 behaviour, Liang et al. compare PRI signatories' words to their holdings.
 
-**In the product.** Two implementations. `measures/greenwash.py` + `measures/gap.py`:
-double-sort / percentile gap on the 0–10 scores, standardized within industry × year
-(`measures/standardize.py`, following Giannetti's per-year normalization and PST's
-within-industry demeaning). `measures/residual.py`: the direct version — pooled OLS of
-log talk on log intensity, Δlog intensity, log document length and industry × year fixed
-effects; `excess_talk` is the residual. Whether excess talk is *cheap talk* is an empirical
-question, answered by `validation.predictive_regression`: excess talk followed by falling
-emissions is credible signalling; otherwise it is greenwashing.
+**In the product — greenwashing detection.** Implemented two ways. The gap measure: talk
+minus walk on standardized 0–10 scores, normalized within industry and year (Giannetti's
+per-year normalization, PST's within-industry demeaning). The excess-talk measure: a
+regression of green-claim intensity on emissions level, emissions trend, report length and
+industry × year effects — the residual is how much *more* a firm talks than its numbers
+justify. Whether excess talk is cheap talk is then tested, not assumed: excess talk
+followed by falling emissions is credible signalling; otherwise it is greenwashing. That
+predictive test ships with the product's validation output.
 
 ### Climate vocabulary and glossy talk — Engle et al. (2020, RFS), Loughran–McDonald (2011, JF)
 
 **Papers.** Engle, Giglio, Kelly, Lee & Stroebel hedge climate-change news using a climate
 vocabulary and cosine similarity. Loughran–McDonald built the standard finance sentiment
-dictionary (generic sentiment dictionaries misclassify financial text).
+dictionary (generic dictionaries misclassify financial text).
 
-**In the product.** `measures/text_measures.py`: `climate_similarity` = cosine between a
-document's term counts and the Engle et al. vocabulary; `glossiness` = a two-step measure
-(cosine gate on the climate vocabulary, then LM sentiment around environment terms —
-the Giannetti et al. glossy-talk design); the low-threshold segment-inclusion rule follows
-Gourier & Mathurin (2025). GDELT news search (`ingest/news_gdelt.py`) uses an ESG query in
-the same spirit for the news talk channel.
+**In the product — the talk score and news channel.** The deterministic talk side measures
+how much and how glossy a firm's climate language is: claim-word intensity from curated
+dictionaries, cosine similarity to the Engle et al. climate vocabulary, and a two-step
+glossiness measure (climate-relevance gate, then Loughran–McDonald sentiment around
+environment terms). The same climate vocabulary drives the news search that feeds the
+news-based talk channel.
 
 ---
 
-## 2. Factors and return tests
+## 2. The green factor and return tests
 
 ### The GMB factor — Pástor–Stambaugh–Taylor (2022)
 
-**Paper.** PST build the green-minus-brown factor two ways: sorted portfolios (green tercile
-minus brown tercile, value-weighted, monthly) and a cross-sectional regression of
+**Paper.** PST build the green-minus-brown factor two ways: sorted portfolios (green
+tercile minus brown tercile, value-weighted, monthly) and a cross-sectional regression of
 market-adjusted excess returns on `g` (the return of a characteristic-mimicking portfolio).
 
-**In the product.** `factors/gmb.py` implements both (`gmb_sorted`, `gmb_regression`).
-Our regression version additionally accepts **cross-sectional controls** (size, momentum,
-industry dummies): the monthly `g`-slope is then the return of the factor-mimicking
-portfolio *neutral to those characteristics* — the risk-neutralized green premium, rather
-than a sector bet. Market betas use a trailing 60-month window shifted to t−1 (no
-look-ahead). PST's interpretation frames the reporting: realized green outperformance is
-driven by climate-concern shocks, while the ex-ante expected premium on green assets is
-*negative* — green assets are hedges, and investors accept lower expected returns for them.
+**In the product — the green factor.** Both constructions are implemented. Our regression
+version additionally controls for size, momentum and industry in each monthly
+cross-section: the green slope is then the return of a portfolio that is *neutral to those
+risk factors* — the isolated green premium, not a sector bet. Market betas use a trailing
+60-month window shifted one month back, so nothing looks ahead. Following PST's own
+interpretation, we report the realized green outperformance as driven by climate-concern
+shocks, while the ex-ante expected premium on green assets is *negative* — green assets
+are hedges, and investors accept lower expected returns for them.
 
 ### The carbon premium — Fama & MacBeth (1973), Newey & West (1987), Bolton & Kacperczyk (2021)
 
@@ -114,61 +113,65 @@ Newey–West: heteroskedasticity- and autocorrelation-consistent standard errors
 average. Bolton–Kacperczyk apply it to emissions with the *lagged* specification
 (year t−1 emissions, year t returns); contemporaneous monthly specs are biased toward zero.
 
-**In the product.** `factors/famamacbeth.py` implements the two-pass estimator with NW
-t-stats and enforces the lagged annual design (`annual_returns` compounds monthly prices).
-`factors/timeseries.py` runs per-series alpha regressions on FF5+MOM(+GMB) with 6-lag NW
-errors — used both for factor validation and for the portfolio's own `b_gmb`.
+**In the product — the return tests and validation tables.** The carbon-premium estimator
+follows the lagged annual design with Newey–West t-statistics, and every return series
+(the green factor, any portfolio) is evaluated against FF5 + momentum with the same HAC
+standard errors. These tables are part of the product's output, not an internal check.
 
 ### The risk model — Fama & French (2015), Carhart (1997), Jegadeesh & Titman (1993), Merton (1980)
 
-**Papers.** FF5 plus momentum is the standard empirical risk model. Momentum is the prior
-12–2 month return (skipping the most recent month). Merton (1980): mean returns are
+**Papers.** FF5 plus momentum is the standard empirical risk model; momentum is the prior
+12–2 month return, skipping the most recent month. Merton (1980): mean returns are
 estimated far too noisily to use as optimizer inputs.
 
-**In the product.** Ken French's published FF5+MOM series via `ingest/factors.py`
-(US and **Asia Pacific ex Japan**, the file that covers Hong Kong). For markets Ken French
-does not cover (Taiwan), `factors/build_local.py` constructs the local set with the same
-recipes: value-weighted market minus the local risk-free, median-split SMB, 30/70 HML, and
-12–2 tercile MOM. Expected returns and covariance for the optimizer are always factor-based
-(`mu = B·mu_f`, `Σ = BFB′ + D` from the FF5+MOM+GMB betas) — never sample moments.
+**In the product — the risk model behind exposures and recommendations.** Hong Kong stocks
+are risk-adjusted with Ken French's published Asia Pacific ex Japan FF5 + momentum series;
+for Taiwan, where no published set exists, we construct the factors locally with the same
+recipes (value-weighted market, median-split size, 30/70 book-to-market, 12–2 momentum).
+Expected returns and the covariance matrix used by the stock-recommendation engine are
+always factor-based — never sample averages.
 
 ---
 
-## 3. Portfolio construction
+## 3. Stock recommendations
 
-- **Green exposures**: per-asset time-series regressions of returns on FF5+MOM+GMB give
-  `b_gmb` — the return sensitivity to the green factor (`portfolio/exposures.py`). A stock
-  can be brown (negative `g`) yet have positive `b_gmb`; the tilt uses the characteristic,
-  the risk model uses the exposure. Positive `b_gmb` = hedges climate-concern shocks (PST).
-- **Tilt beats divestment** (Bellon–Boualam): the default product is a long-only tilt
-  `w ∝ w_index·exp(λ·z(g))` (`portfolio/tilt.py`) — underweighting brown vs the benchmark
-  is economically a benchmark-relative short, without short-selling frictions. The GMB
-  factor itself remains the long-short measurement and hedging instrument.
-- **Mean-variance with a green term** (`portfolio/optimize.py`): `max w′mu − γ/2·w′Σw +
-  λ·w′z(g)`, long-only, capped, with an exact linear turnover penalty `κ·|w − w0|` so the
-  user's current portfolio is the default and every recommended trade must earn its cost.
+- **Green exposures**: each stock's returns are regressed on FF5 + momentum + the green
+  factor, giving its `b_gmb` — how it *behaves* when green outperforms. A stock can be
+  brown (negative `g`) yet have positive `b_gmb`; the recommendation engine uses the
+  greenness characteristic for tilting and the exposure for risk. Positive `b_gmb` means
+  the stock hedges climate-concern shocks (PST).
+- **Tilt beats divestment** (Bellon–Boualam): the default recommendation is a long-only
+  tilt — overweight green, underweight brown relative to the current portfolio.
+  Underweighting brown against the benchmark is economically a benchmark-relative short,
+  without short-selling frictions. The GMB factor itself remains the long-short
+  measurement and hedging instrument.
+- **Optimization with a conscience for turnover**: target weights maximize expected return
+  minus risk-aversion × variance plus a green-preference term, subject to a linear
+  penalty on trading away from the user's current holdings — so no-change is the default
+  and every recommended trade must earn its cost. Risk preference (1–5) maps to risk
+  aversion, green preference (1–5) to the green term.
 
 ---
 
-## 4. How the LLM is allowed to touch any of this — Gourier & Mathurin (2025)
+## 4. How the AI is allowed to touch any of this — Gourier & Mathurin (2025)
 
 **Paper.** Gourier & Mathurin's discipline for LLM text work: the model chooses only from
 what is supplied; it must not infer, invent or speculate.
 
-**In the product.** Every LLM task is scoped, structured and auditable:
+**In the product — every AI agent.** Each model task is scoped, structured and auditable:
 
-- **Extraction** (scope 1/2 from HKEX PDFs, `ingest/emissions_hk.py`): page numbers +
-  verbatim quotes required, cached per (document, model, extraction version).
-- **Talk/walk rubric** (`measures/talkwalk.py`): fixed versioned rubric (0–10 sub-scores
-  following Chen 2022, Giannetti 2023, Liang 2022, Gourier-Mathurin 2025), pydantic
-  structured output, hard data passed in so the model checks claims against facts; cache
-  key includes rubric version, model and prompt variant, so re-runs are free and
-  comparable.
-- **Screening agent** (`portfolio/screen.py`): free-text preferences are translated into a
-  filter choosing only from the universe's *actual* sector/industry/country values; the
-  output is sanitized and applied deterministically. The model proposes, the code disposes.
-- **Provider neutrality** (`esgx.llm`): Kimi K3 primary, Claude as a second rater; the
-  model id is part of every cache key so raters never mix.
+- **Emissions extraction**: scope 1/2 figures are read out of HKEX report PDFs with page
+  numbers and verbatim quotes, so every number can be traced back to the document.
+- **Talk/walk rubric scoring**: a fixed, versioned rubric (0–10 sub-scores following the
+  Chen / Giannetti / Liang / Gourier-Mathurin literature), with the firm's hard data passed
+  in so the model checks claims against facts. Every call is cached by rubric version,
+  model and prompt variant — re-runs are free and comparable.
+- **Preference screening**: the investor's free-text preferences are translated into a
+  filter choosing only from the universe's *actual* sectors, industries and countries;
+  the parsed interpretation is shown before any trade is proposed. The model proposes,
+  the code disposes.
+- **Two-model design**: Kimi K3 is the primary model, Claude the second rater; the model
+  identity is part of every cache key so raters never mix.
 
 The design rule: **AI where judgment is needed, math where it is not.** Downstream of a
 score, everything — factors, exposures, optimization — is deterministic and reproducible.
@@ -177,15 +180,14 @@ score, everything — factors, exposures, optimization — is deterministic and 
 
 ## 5. Cross-cutting rigour
 
-- **No look-ahead**: emissions become effective with an 18-month publication lag
-  (`measures/carbon.align_annual_to_months`); all betas are shifted to t−1; B/M follows the
-  same July-t+1 rule as the greenness panel.
-- **Deterministic first**: deterministic talk/walk/greenwashing scores exist for the whole
-  universe with no LLM at all; LLM measures layer on top, versioned and cached.
-- **Validation as a first-class output**: Fama–MacBeth premium tables, with/without
-  super-emitter robustness, and the predictive regression on excess talk are part of the
-  pipeline, not an afterthought. See `brain/analys/` for the literature map (83 papers)
-  behind these choices.
+- **No look-ahead**: emissions become effective only after an 18-month publication lag;
+  all betas are shifted one month back; book-to-market follows the same lag rule as the
+  greenness panel.
+- **Deterministic first**: the whole universe gets deterministic talk/walk/greenwashing
+  scores with no LLM at all; the LLM measures layer on top, versioned and cached.
+- **Validation as a product output**: carbon-premium tables, robustness with and without
+  super-emitter industries, and the predictive test on excess talk are part of what the
+  engine produces — not an afterthought.
 
 ## References
 
@@ -204,4 +206,4 @@ score, everything — factors, exposures, optimization — is deterministic and 
 - Giannetti, M., et al. (2023). Working paper on glossy talk vs lending behaviour.
 - Gourier, G., & Mathurin, T. (2025). Working paper on LLM-based text classification for sustainable finance.
 - Liang, H., Sun, L., & Teo, M. (2022). Working paper on PRI signatories' words vs holdings.
-- Chen (2022, 2025). Talk/walk greenwashing measures (see `measures/talkwalk.py` docstring).
+- Chen (2022, 2025). Talk/walk greenwashing measures (see the talk/walk scoring rubric).
