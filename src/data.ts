@@ -11,6 +11,9 @@ export type Company = {
   carbon: number | null;
   walk: number | null;
   talk: number | null;
+  gap?: number | null;
+  greenwasher?: boolean;
+  greenhusher?: boolean;
   color: string;
   initials: string;
   note: string;
@@ -105,12 +108,12 @@ export const capabilities = {
   returnForecast: false,
   recalculation: false,
 };
-export function coverage(weights: number[]) {
+export function coverage(weights: number[], list: Company[] = companies) {
   const total = weights.reduce((a, b) => a + b, 0);
   return total
     ? Math.round(
-        (companies.reduce(
-          (sum, c, i) => sum + (c.score !== null ? weights[i] : 0),
+        (list.reduce(
+          (sum, c, i) => sum + (c.score !== null ? (weights[i] ?? 0) : 0),
           0,
         ) /
           total) *
