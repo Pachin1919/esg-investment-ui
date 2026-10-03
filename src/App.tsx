@@ -37,12 +37,17 @@ import {
   uploadPortfolioCsv,
 } from "./api";
 import type { PortfolioAnalysis } from "./api";
+import { Recommend } from "./Recommend";
 
-type View = "portfolio" | "explore" | "method";
+type View = "portfolio" | "explore" | "recommend" | "method";
+// Starting portfolio on live data until the user imports their own (ticker -> allocation %).
+const SAMPLE_PORTFOLIO: Record<string, number> = { "0002.HK": 28, "0700.HK": 24, "0066.HK": 20, "0857.HK": 16, "0992.HK": 12 };
+const MAX_UNIVERSE_HITS = 25;
 type DemoState = "partial" | "loading" | "empty" | "error";
 const navItems = [
   { id: "portfolio" as View, label: "My portfolio", icon: SquaresFour },
   { id: "explore" as View, label: "Explore changes", icon: ArrowsLeftRight },
+  { id: "recommend" as View, label: "Recommendations", icon: Sparkle },
   { id: "method" as View, label: "Our methodology", icon: Compass },
 ];
 
@@ -299,24 +304,30 @@ function HoldingTable({
   onQuery,
   onSelect,
   companiesList = companies,
+  universe = [],
 }: {
   query: string;
   onQuery: (q: string) => void;
   onSelect: (c: Company) => void;
   companiesList?: Company[];
+  universe?: Company[];
 }) {
   const [sort, setSort] = useState<"allocation" | "score">("allocation");
-  const filtered = companiesList
-    .filter((c) =>
-      `${c.name} ${c.ticker} ${c.sector} ${c.region}`
-        .toLowerCase()
-        .includes(query.toLowerCase()),
-    )
+  const matches = (c: Company) =>
+    `${c.name} ${c.ticker} ${c.sector} ${c.region}`.toLowerCase().includes(query.toLowerCase());
+  const held = new Set(companiesList.map((c) => c.id));
+  const holdings = companiesList
+    .filter(matches)
     .sort((a, b) =>
       sort === "allocation"
         ? b.allocation - a.allocation
         : (b.score ?? -1) - (a.score ?? -1),
     );
+  // A search also reaches the companies outside the portfolio.
+  const others = query
+    ? universe.filter((c) => !held.has(c.id) && matches(c)).slice(0, MAX_UNIVERSE_HITS)
+    : [];
+  const filtered = [...holdings, ...others];
   return (
     <section className="panel holdings">
       <div className="section-top">
@@ -324,7 +335,10 @@ function HoldingTable({
           <h2>
             Your holdings <span className="count">{String(companiesList.length).padStart(2, "0")}</span>
           </h2>
-          <p>See the companies behind your portfolio.</p>
+          <p>
+            See the companies behind your portfolio.
+            {universe.length > 0 && ` Search to look up any of the ${universe.length} companies in the universe.`}
+          </p>
         </div>
         <label className="search">
           <MagnifyingGlass size={17} />
@@ -383,15 +397,19 @@ function HoldingTable({
                 </td>
                 <td className="sector-cell">{c.sector}</td>
                 <td>
-                  <div className="allocation-cell">
-                    <span>{c.allocation}%</span>
-                    <i
-                      style={{
-                        width: `${c.allocation * 2}px`,
-                        background: c.color,
-                      }}
-                    />
-                  </div>
+                  {held.has(c.id) ? (
+                    <div className="allocation-cell">
+                      <span>{c.allocation}%</span>
+                      <i
+                        style={{
+                          width: `${c.allocation * 2}px`,
+                          background: c.color,
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <span className="not-held">Not held</span>
+                  )}
                 </td>
                 <td>
                   <Score value={c.score} />
@@ -451,17 +469,21 @@ function HoldingTable({
 
 function CompanyDetail({
   company: c,
+  live,
+  held,
   onClose,
   onExplore,
 }: {
   company: Company;
+  live: boolean;
+  held: boolean;
   onClose: () => void;
   onExplore: () => void;
 }) {
   return (
     <Modal title="Company analysis" onClose={onClose}>
       <div className="detail-content">
-        <Badge tone="blue">Fictional company · Demo data</Badge>
+        <Badge tone="blue">{live ? "Live engine data" : "Fictional company · Demo data"}</Badge>
         <div className="detail-identity">
           <CompanyMark company={c} />
           <div>
@@ -473,7 +495,7 @@ function CompanyDetail({
         </div>
         <div className="detail-summary">
           <div>
-            <p>Environmental score</p>
+            <p>Environmental score · Walk</p>
             <Score value={c.score} />
           </div>
           <Leaf size={40} weight="duotone" />
@@ -492,7 +514,7 @@ function CompanyDetail({
         <div className="detail-facts">
           <div>
             <span>Portfolio allocation</span>
-            <strong>{c.allocation}%</strong>
+            <strong>{held ? `${c.allocation}%` : "Not held"}</strong>
           </div>
           <div>
             <span>Industry importance · E_weight</span>
@@ -514,18 +536,11 @@ function CompanyDetail({
           )}
         </div>
         <h3>Behind the score</h3>
-        <p className="muted">Separate sample signals, each on a 0–10 scale.</p>
+        <p className="muted">
+          The environmental score is the Walk signal: emissions intensity against sector peers, 0–10.
+          Talk is reported separately.
+        </p>
         {[
-          {
-            label: "Carbon performance",
-            value: c.carbon,
-            desc: "Industry-relative emissions signal",
-          },
-          {
-            label: "Actions · Walk",
-            value: c.walk,
-            desc: "Documented environmental action",
-          },
           {
             label: "Commitments · Talk",
             value: c.talk,
@@ -548,16 +563,17 @@ function CompanyDetail({
             <FileText size={18} />
             Evidence & limitations
           </summary>
-          <p>
-            These values are fictional UI fixtures. No source document or
-            verified company evidence is attached.
-          </p>
-          <p>
-            E_score is supplied independently for this demo; the values above do
-            not reproduce a validated scoring model. Talk is not directly added
-            to E_score.
-          </p>
-          <p>Period: FY 2025 · Method: illustrative fixture v1.</p>
+          {live ? (
+            <p>
+              Walk is the sector-relative Scope 1+2 intensity score from disclosed emissions; Talk is
+              measured from company filings. A Talk − Walk gap is a signal to investigate, not a finding.
+            </p>
+          ) : (
+            <p>
+              These values are fictional UI fixtures. No source document or verified company evidence
+              is attached.
+            </p>
+          )}
         </details>
         <details className="evidence">
           <summary>
@@ -793,9 +809,9 @@ function Explore({
                       <small className="positive">Target: 0.0 (Net Zero)</small>
                     </div>
                     <div className="esg-scorecard-card">
-                      <span>Carbon Intensity</span>
-                      <strong>{analysisResult.weighted_pillars.carbon !== null ? `${analysisResult.weighted_pillars.carbon}/10` : "—"}</strong>
-                      <small className="neutral">Audited emissions rank</small>
+                      <span>Environmental score</span>
+                      <strong>{analysisResult.portfolio_e_score !== null ? `${analysisResult.portfolio_e_score}/10` : "—"}</strong>
+                      <small className="neutral">Weighted Walk score</small>
                     </div>
                     <div className="esg-scorecard-card">
                       <span>Greenwash Exposure</span>
@@ -931,6 +947,7 @@ function Method() {
 
 function BlueOverview({
   portfolio = companies,
+  universe,
   onSelect,
   onExplore,
   onMethod,
@@ -938,6 +955,7 @@ function BlueOverview({
   onQuery,
 }: {
   portfolio?: Company[];
+  universe?: Company[];
   onSelect: (c: Company) => void;
   onExplore: () => void;
   onMethod: () => void;
@@ -1058,7 +1076,7 @@ function BlueOverview({
           </button>
         </aside>
       </div>
-      <HoldingTable query={query} onQuery={onQuery} onSelect={onSelect} companiesList={portfolio} />
+      <HoldingTable query={query} onQuery={onQuery} onSelect={onSelect} companiesList={portfolio} universe={universe} />
       <div className="footnote">
         <Info size={15} />
         <span>
@@ -1071,6 +1089,7 @@ function BlueOverview({
 
 function GreenOverview({
   portfolio = companies,
+  universe,
   onSelect,
   onExplore,
   onMethod,
@@ -1078,6 +1097,7 @@ function GreenOverview({
   onQuery,
 }: {
   portfolio?: Company[];
+  universe?: Company[];
   onSelect: (c: Company) => void;
   onExplore: () => void;
   onMethod: () => void;
@@ -1209,7 +1229,7 @@ function GreenOverview({
           </button>
         ))}
       </div>
-      <HoldingTable query={query} onQuery={onQuery} onSelect={onSelect} companiesList={portfolio} />
+      <HoldingTable query={query} onQuery={onQuery} onSelect={onSelect} companiesList={portfolio} universe={universe} />
       <section className="green-learning">
         <span className="learning-icon">
           <Leaf size={37} weight="duotone" />
@@ -1415,6 +1435,8 @@ export default function App() {
   const [demoState, setDemoState] = useState<DemoState>("partial");
   const [notice, setNotice] = useState("");
   const [portfolio, setPortfolio] = useState<Company[]>(companies);
+  const [universe, setUniverse] = useState<Company[]>([]);
+  const imported = useRef(false);
   const [isLive, setIsLive] = useState(false);
   const [market, setMarket] = useState<"hk" | "tw" | "all">("all");
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -1428,7 +1450,11 @@ export default function App() {
           setIsLive(true);
           const liveCompanies = await fetchCompanies(market);
           if (mounted && liveCompanies && liveCompanies.length > 0) {
-            setPortfolio(liveCompanies);
+            setUniverse(liveCompanies);
+            const sample = liveCompanies
+              .filter((c) => c.ticker in SAMPLE_PORTFOLIO)
+              .map((c) => ({ ...c, allocation: SAMPLE_PORTFOLIO[c.ticker] }));
+            if (!imported.current && sample.length > 0) setPortfolio(sample);
           }
         }
       } catch (err) {
@@ -1442,6 +1468,7 @@ export default function App() {
   }, [market]);
 
   const handleUploadSuccess = (uploadedCompanies: Company[]) => {
+    imported.current = true;
     setPortfolio(uploadedCompanies);
     const covered = uploadedCompanies.filter((c) => c.score !== null).length;
     setNotice(`Loaded ${uploadedCompanies.length} holdings (${covered} covered by ESG universe)`);
@@ -1503,6 +1530,7 @@ export default function App() {
 
   const overviewProps = {
     portfolio,
+    universe,
     onSelect: setSelected,
     onExplore: () => navigate("explore"),
     onMethod: () => navigate("method"),
@@ -1685,7 +1713,9 @@ export default function App() {
               />
             )
           ) : view === "explore" ? (
-            <Explore companiesList={portfolio} onNotice={setNotice} />
+            <Explore key={portfolio.map((c) => c.id).join()} companiesList={portfolio} onNotice={setNotice} />
+          ) : view === "recommend" ? (
+            <Recommend portfolio={portfolio} universe={universe} market={market === "tw" ? "tw" : "hk"} />
           ) : (
             <Method />
           )}
@@ -1721,6 +1751,8 @@ export default function App() {
       {selected && (
         <CompanyDetail
           company={selected}
+          live={isLive}
+          held={portfolio.some((c) => c.id === selected.id)}
           onClose={() => setSelected(null)}
           onExplore={() => {
             setSelected(null);

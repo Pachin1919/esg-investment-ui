@@ -31,6 +31,7 @@ from esgx.config import OUTPUT_DIR, PROCESSED_DIR, RAW_DIR
 from esgx.measures.greenness import greenness
 from esgx.api.portfolio_routes import router as portfolio_router
 from server.adapter import dataframe_to_companies, format_company_for_ui
+from server.dataset import load_market
 
 app = FastAPI(
     title="Green Street Analysis Engine API",
@@ -58,45 +59,12 @@ class CsvUploadRequest(BaseModel):
     csv_text: str
 
 
-UNIVERSE_FILES = {"hk": ("universe_hk.parquet", "universe_hsi.parquet", "universe_hsci.parquet"),
-                  "tw": ("universe_twse.parquet",)}
-
-
-def _merge_universe_names(df: pd.DataFrame, market: str) -> pd.DataFrame:
-    """Attach display names and country (drives the region label) from the market's universe;
-    `ticker` falls back to firm_id (the current universe schemas have no ticker column)."""
-    for name in UNIVERSE_FILES[market]:
-        univ_file = RAW_DIR / name
-        if not univ_file.exists():
-            continue
-        univ = pd.read_parquet(univ_file)
-        cols = ["firm_id", "name"] + [c for c in ("ticker", "country") if c in univ.columns]
-        df = df.merge(univ[cols], on="firm_id", how="left")
-        break
-    if "ticker" not in df.columns:
-        df["ticker"] = df["firm_id"]
-    return df
-
-
 def load_latest_dataset(market: str = "all") -> pd.DataFrame:
     """Load scored companies from outputs: one market, or by default ALL markets at once
     (Hong Kong incl. HKEX-listed mainland China + Taiwan, region kept per row)."""
-    if market == "all":
-        frames = []
-        for m in ("hk", "tw"):
-            det = OUTPUT_DIR / f"det_greenwashing_{m}.csv"
-            if det.exists():
-                df = _merge_universe_names(pd.read_csv(det), m)
-                df["market"] = m
-                frames.append(df)
-        if frames:
-            return pd.concat(frames, ignore_index=True)
-    else:
-        det = OUTPUT_DIR / f"det_greenwashing_{market}.csv"
-        if det.exists():
-            df = _merge_universe_names(pd.read_csv(det), market)
-            df["market"] = market
-            return df
+    frames = [df for m in (("hk", "tw") if market == "all" else (market,)) if (df := load_market(m)) is not None]
+    if frames:
+        return pd.concat(frames, ignore_index=True)
 
     # Otherwise load baseline representative demo scoring based on real HK/TW companies
     sample_metrics = [
@@ -255,7 +223,7 @@ def get_sample_csv() -> str:
         "ticker,allocation\n"
         "0002.HK,28\n"
         "0066.HK,20\n"
-        "2330.TW,24\n"
+        "0700.HK,24\n"
         "0857.HK,16\n"
         "0992.HK,12\n"
     )

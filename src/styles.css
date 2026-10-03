@@ -2811,3 +2811,50 @@ tbody tr:hover {
   color: #ef4444;
   font-size: 13px;
 }
+
+/* Recommendations view */
+.preference {
+  display: grid;
+  gap: 6px;
+  margin: 18px 0;
+}
+.preference-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.preference-head em {
+  font-style: normal;
+  font-size: 12px;
+  color: var(--muted);
+}
+.preference input[type="range"] {
+  width: 100%;
+  accent-color: var(--primary);
+}
+.preference small,
+.preference-amounts span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.preference-amounts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.preference-amounts label {
+  display: grid;
+  gap: 4px;
+}
+.preference-amounts input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line, #d9e0e6);
+  border-radius: 8px;
+  font: inherit;
+}
+.not-held {
+  font-size: 12px;
+  color: var(--muted);
+}
