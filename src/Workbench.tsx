@@ -160,22 +160,31 @@ export default function Workbench({entry,onHome}:{entry:"demo"|"resume"|"setting
 }
 function Comparison({baseline,result}:{baseline:Portfolio;result:Portfolio}) {
   const before=metrics(baseline),after=metrics(result);
+  type Tone="positive"|"negative"|"neutral";
+  const tone=(oldValue:number|null,newValue:number|null):Tone=>{
+    if(oldValue===null||newValue===null||Math.abs(newValue-oldValue)<0.000001)return "neutral";
+    return newValue>oldValue?"positive":"negative";
+  };
   const change=(a:number|null,b:number|null,percentage:boolean)=>{
     if(a===null||b===null)return "Unavailable";
     const delta=Number(((b-a)*(percentage?100:1)).toFixed(percentage?3:2));
     return `${delta>=0?"+":""}${delta.toFixed(percentage?3:2)} ${percentage?"pp":"points"}`;
   };
+  const baselineValue=totalValue(baseline),resultValue=totalValue(result);
   const rows=[
-    ["Portfolio value",money(totalValue(baseline),baseline.baseCurrency),money(totalValue(result),result.baseCurrency),money(totalValue(result)-totalValue(baseline),result.baseCurrency)],
-    ["Expected return · annual",percent(before.expectedReturn.value,3),percent(after.expectedReturn.value,3),change(before.expectedReturn.value,after.expectedReturn.value,true)],
-    ["Portfolio green score",score(before.greenScore.value),score(after.greenScore.value),change(before.greenScore.value,after.greenScore.value,false)],
-    ["Portfolio volatility","Unavailable","Unavailable","Unavailable"],
-    ["E-score coverage",percent(before.greenScore.coverage,1),percent(after.greenScore.coverage,1),change(before.greenScore.coverage,after.greenScore.coverage,true)],
+    {label:"Portfolio value",old:money(baselineValue,baseline.baseCurrency),next:money(resultValue,result.baseCurrency),delta:money(resultValue-baselineValue,result.baseCurrency),tone:tone(baselineValue,resultValue)},
+    {label:"Expected return · annual",old:percent(before.expectedReturn.value,3),next:percent(after.expectedReturn.value,3),delta:change(before.expectedReturn.value,after.expectedReturn.value,true),tone:tone(before.expectedReturn.value,after.expectedReturn.value)},
+    {label:"Portfolio green score",old:score(before.greenScore.value),next:score(after.greenScore.value),delta:change(before.greenScore.value,after.greenScore.value,false),tone:tone(before.greenScore.value,after.greenScore.value)},
+    {label:"Portfolio volatility",old:"Unavailable",next:"Unavailable",delta:"Unavailable",tone:"neutral" as Tone},
+    {label:"E-score coverage",old:percent(before.greenScore.coverage,1),next:percent(after.greenScore.coverage,1),delta:change(before.greenScore.coverage,after.greenScore.coverage,true),tone:tone(before.greenScore.coverage,after.greenScore.coverage)},
   ];
-  return <><div className="table-scroll"><table className="comparison-table"><caption>Portfolio performance</caption><thead><tr><th>Metric</th><th>Old portfolio</th><th>New portfolio</th><th>Change</th></tr></thead><tbody>{rows.map(([label,...values])=><tr key={label}><th scope="row"><InfoPopover label={label} content={<><strong>{label}</strong><p>{metricExplanations[label]}</p></>}>{label}</InfoPopover></th>{values.map((value,i)=><td key={i}>{value}</td>)}</tr>)}</tbody></table></div>
+  return <><div className="table-scroll"><table className="comparison-table performance-comparison"><caption>Portfolio performance</caption><thead><tr><th>Metric</th><th>Old portfolio</th><th>New portfolio</th><th>Change</th></tr></thead><tbody>{rows.map(row=><tr key={row.label}><th scope="row"><InfoPopover label={row.label} content={<><strong>{row.label}</strong><p>{metricExplanations[row.label]}</p></>}>{row.label}</InfoPopover></th><td className="comparison-old">{row.old}</td><td className={`comparison-new tone-${row.tone}`}>{row.next}</td><td className={`comparison-change tone-${row.tone}`}>{row.delta}</td></tr>)}</tbody></table></div>
     <p className="holding-table-hint">Company details · Scroll for all share values →</p>
     <div className="table-scroll"><table className="comparison-table company-comparison"><caption>Each company / share</caption><thead><tr><th>Company</th><th>Unit price</th><th>Old units</th><th>New units</th><th>Old total</th><th>New total</th><th>E-score</th><th>Old weight</th><th>New weight</th></tr></thead><tbody>{[...new Set([...baseline.holdings,...result.holdings].map(h=>h.id))].map(id=>{
       const a=baseline.holdings.find(h=>h.id===id),b=result.holdings.find(h=>h.id===id),h=b??a!;
-      return <tr key={id}><th scope="row"><CompanyInfo company={h}/><small className="comparison-symbol">{displayTicker(h.ticker)} · {h.exchange}</small></th><td>{h.unitPrice==null?"Unavailable":unitMoney(h.unitPrice,result.baseCurrency)}</td><td>{a?a.units??"Unavailable":0}</td><td>{b?b.units??"Unavailable":0}</td><td>{money(a?.value??0,baseline.baseCurrency)}</td><td>{money(b?.value??0,result.baseCurrency)}</td><td>{score(h.eScore)}</td><td>{percent((a?.value??0)/totalValue(baseline),1)}</td><td>{percent((b?.value??0)/totalValue(result),1)}</td></tr>;
+      const oldValue=a?.value??0,newValue=b?.value??0,positionTone=tone(oldValue,newValue);
+      const oldWeight=oldValue/baselineValue,newWeight=newValue/resultValue;
+      const scoreTone=h.eScore===null?"neutral":h.eScore>=8?"positive":h.eScore<6?"negative":"neutral";
+      return <tr key={id} className={`position-${positionTone}`}><th scope="row"><CompanyInfo company={h}/><small className="comparison-symbol">{displayTicker(h.ticker)} · {h.exchange}</small></th><td>{h.unitPrice==null?"Unavailable":unitMoney(h.unitPrice,result.baseCurrency)}</td><td className="comparison-old">{a?a.units??"Unavailable":0}</td><td className={`comparison-new tone-${positionTone}`}>{b?b.units??"Unavailable":0}</td><td className="comparison-old">{money(oldValue,baseline.baseCurrency)}</td><td className={`comparison-new tone-${positionTone}`}>{money(newValue,result.baseCurrency)}</td><td><span className={`score-signal tone-${scoreTone}`}>{score(h.eScore)}</span></td><td className="comparison-old">{percent(oldWeight,1)}</td><td className={`comparison-new tone-${tone(oldWeight,newWeight)}`}>{percent(newWeight,1)}</td></tr>;
     })}</tbody></table></div></>;
 }

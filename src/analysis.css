@@ -235,6 +235,26 @@
 .comparison-table{min-width:490px;font-variant-numeric:tabular-nums}.comparison-table th,.comparison-table td{padding:16px 14px}
 .comparison-table th{white-space:normal}.comparison-table td{white-space:nowrap}.comparison-table caption{text-align:left;padding:20px 14px 12px;color:#2b4764;font-size:16px;font-weight:600}
 .comparison-table tbody th{background:#fff;font-weight:500}.comparison-panel{min-width:0;align-self:start}.comparison-panel>.button{margin:12px 20px}
+.comparison-table{--market-up:#16845b;--market-up-bg:#edf8f2;--market-down:#c54754;--market-down-bg:#fff1f2;--market-flat:#60758a;--market-flat-bg:#f3f6f8}
+.comparison-table .comparison-old{color:#75869a}
+.comparison-table .comparison-new{font-weight:650}
+.comparison-table .tone-positive{color:var(--market-up)}
+.comparison-table .tone-negative{color:var(--market-down)}
+.comparison-table .tone-neutral{color:var(--market-flat)}
+.performance-comparison .comparison-new,.performance-comparison .comparison-change{font-variant-numeric:tabular-nums}
+.performance-comparison .comparison-change{font-weight:750;box-shadow:inset 3px 0 transparent}
+.performance-comparison .comparison-change.tone-positive{background:var(--market-up-bg);box-shadow:inset 3px 0 var(--market-up)}
+.performance-comparison .comparison-change.tone-negative{background:var(--market-down-bg);box-shadow:inset 3px 0 var(--market-down)}
+.performance-comparison .comparison-change.tone-neutral{background:var(--market-flat-bg)}
+.company-comparison tbody tr>th{border-left:3px solid transparent}
+.company-comparison tbody tr.position-positive>th{border-left-color:var(--market-up)}
+.company-comparison tbody tr.position-negative>th{border-left-color:var(--market-down)}
+.company-comparison .comparison-new.tone-positive{background:linear-gradient(90deg,var(--market-up-bg),transparent 88%)}
+.company-comparison .comparison-new.tone-negative{background:linear-gradient(90deg,var(--market-down-bg),transparent 88%)}
+.score-signal{display:inline-flex;align-items:center;justify-content:center;min-width:48px;padding:4px 8px;border-radius:999px;font-weight:750;font-variant-numeric:tabular-nums}
+.score-signal.tone-positive{background:var(--market-up-bg)}
+.score-signal.tone-negative{background:var(--market-down-bg)}
+.score-signal.tone-neutral{background:var(--market-flat-bg)}
 .model-note{font-size:14px;color:#536981;line-height:1.7;display:block;margin:18px 22px}
 .comparison-empty{padding:35px 24px;text-align:center;color:#526a84}.comparison-empty h3{font-size:20px;margin-top:18px}.comparison-empty p{font-size:15px;line-height:1.7}
 .request-preview{margin:20px;color:#395b7d;font-size:14px}.request-preview summary{cursor:pointer;font-weight:600}.request-preview pre{font-size:13px;line-height:1.6;overflow:auto;max-width:100%;padding:15px;background:#f3f6fa;border-radius:6px}
