@@ -485,9 +485,8 @@
 .view-tabs [role=tab]:hover:not(:disabled){color:#2f5f9e}
 .view-tabs [role=tab]:disabled{opacity:.45;cursor:not-allowed}
 .comparison-tab{margin-top:0;padding-top:8px}
-.export-options .export-tables{grid-column:1/-1}
-.export-table-list{display:grid;gap:8px;margin-top:6px}
-.export-table-list>div{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 12px;border:1px solid #e3eaf1;border-radius:8px}
-.export-table-list strong{display:block;font-size:13px;color:#2c465e}
-.export-table-list small{display:block;font-size:11px;color:#73879a;margin-top:3px;line-height:1.5}
-.export-table-list .button{min-height:36px;padding:0 14px;flex:none}
+.export-table-list{display:grid;gap:10px;margin-top:18px}
+.export-table-list>div{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 18px;border:1px solid #dce5ed;border-radius:11px;background:#fff}
+.export-table-list strong{display:block;font-size:15px;color:#29425e}
+.export-table-list small{display:block;font-size:12px;color:#5c7188;margin-top:4px;line-height:1.5}
+.export-table-list .button{min-height:40px;min-width:132px;padding:0 16px;flex:none;background:#315f9d;color:#fff;font-size:13px}

@@ -4,7 +4,6 @@ import { fetchCompanies, fetchFilterOptions, recommendPortfolio } from "./api";
 import type { Recommendation, SectorOption } from "./api";
 import Brand from "./Brand";
 import Comparison from "./Comparison";
-import { performanceCsv, positionsCsv, recommendedPositionsCsv } from "./comparisonExport";
 import ImportFlow from "./ImportFlow";
 import { holdingsRequest, lookupIn, POOLED_MARKET, newCapital, recommendedPortfolio, samplePortfolio, withPrices } from "./live";
 import type { Plan, Universe } from "./live";
@@ -12,7 +11,8 @@ import { HoldingsTable, MetricCards, UniverseSearch } from "./Overview";
 import { download, money, totalValue } from "./portfolio";
 import type { Portfolio } from "./portfolio";
 import { createPortfolioExport } from "./portfolioExport";
-import type { ExportFormat, ExportKind } from "./portfolioExport";
+import { exportTables, renderTable, TABLE_FORMATS } from "./tableExport";
+import type { ExportTable, TableFormat } from "./tableExport";
 import RecommendationsBuilder from "./RecommendationsBuilder";
 import Settings from "./Settings";
 import { Button, Dialog, HighlightBadge, RiskBadge } from "./ui";
@@ -37,7 +37,7 @@ export default function Workbench({ entry, onHome }: { entry: "demo" | "resume" 
   const [sectors, setSectors] = useState<SectorOption[]>([]);
   const [rec, setRec] = useState<Recommendation | null>(null), [loading, setLoading] = useState(false), [recError, setRecError] = useState("");
   const [uploadOpen, setUploadOpen] = useState(false), [exportOpen, setExportOpen] = useState(false);
-  const [exportFormat, setExportFormat] = useState<ExportFormat>("pdf"), [exportBusy, setExportBusy] = useState(false);
+  const [exportFormat, setExportFormat] = useState<TableFormat>("pdf"), [exportBusy, setExportBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [recTab, setRecTab] = useState<"builder" | "comparison">("builder");
   useEffect(() => { try { localStorage.setItem(storageKey, JSON.stringify(state)); } catch { /* Continue without persistence. */ } }, [state]);
@@ -82,20 +82,25 @@ export default function Workbench({ entry, onHome }: { entry: "demo" | "resume" 
     setState(s => ({ ...s, portfolio, plan: initialState.plan }));
     setUploadOpen(false); go("overview"); setNotice("Current portfolio updated.");
   };
-  const exportPortfolio = async (kind: ExportKind) => {
-    if (!p || (!result && kind !== "current") || exportBusy) return;
+  const exportCurrent = async () => {
+    if (!p || exportBusy) return;
     setExportBusy(true);
     try {
-      const file = await createPortfolioExport(kind, kind === "current" ? "pdf" : exportFormat, p, kind === "current" ? p : result!, { riskLevel: state.risk, greenPreference: state.green, maxInvestment: state.maxInvestment });
-      download(file.name, file.content, file.mimeType); setNotice(kind === "current" ? "Current portfolio exported." : kind === "recommended" ? "Recommended portfolio exported." : "Portfolio comparison exported.");
+      const file = await createPortfolioExport("current", "pdf", p, p, { riskLevel: state.risk, greenPreference: state.green, maxInvestment: state.maxInvestment });
+      download(file.name, file.content, file.mimeType); setNotice("Current portfolio exported.");
     } catch { setNotice("Could not generate the report. Please try again."); } finally { setExportBusy(false); }
   };
-  // the three tables of the recommendation page, each as CSV
-  const tableExports = p && result && rec && universe ? [
-    { label: "Recommended positions", detail: "What to hold after the trades: action, shares, value and weight.", onExport: () => { download("recommended-positions.csv", recommendedPositionsCsv(rec, universe, currency)); setNotice("Recommended positions exported."); } },
-    { label: "Portfolio performance", detail: "Old vs new key figures: risk, return, environment, concentration, factor exposures.", onExport: () => { download("portfolio-performance.csv", performanceCsv(p, result, rec)); setNotice("Portfolio performance exported."); } },
-    { label: "Each company / share", detail: "Every position with old and new units, totals and weights.", onExport: () => { download("company-shares.csv", positionsCsv(rec, universe, currency)); setNotice("Company table exported."); } },
-  ] : [];
+  // the three tables of the recommendation page, each in the format picked in the dialog
+  const tables = useMemo(() => (p && result && rec && universe ? exportTables(p, result, rec, universe) : []), [p, result, rec, universe]);
+  const exportTable = async (table: ExportTable) => {
+    if (exportBusy || !p) return;
+    setExportBusy(true);
+    try {
+      const context = `Valuation: ${p.asOf}  |  Currency: ${currency}  |  Risk level ${state.risk}  |  Green preference ${state.green}  |  Maximum investment ${money(state.maxInvestment, currency)}`;
+      const file = await renderTable(table, exportFormat, context);
+      download(file.name, file.content, file.mimeType); setNotice(`${table.title} exported.`);
+    } catch { setNotice("Could not generate the file. Please try again."); } finally { setExportBusy(false); }
+  };
   const status = engineDown ? <p className="engine-status error" role="alert"><WarningCircle size={16} />The analysis engine is not reachable. Scores and recommendations are unavailable.</p>
     : recError ? <p className="engine-status error" role="alert"><WarningCircle size={16} />{recError}</p> : null;
 
@@ -104,7 +109,7 @@ export default function Workbench({ entry, onHome }: { entry: "demo" | "resume" 
       {view === "overview" && <div className="workspace-page"><div className="workspace-heading portfolio-heading"><div><span className="workspace-eyebrow">PORTFOLIO ASSESSMENT</span><h1>Current portfolio</h1><p>Manage your holdings and review their financial and environmental performance.</p></div><Button onClick={() => setUploadOpen(true)} disabled={!universe}><FileArrowUp size={20} />Upload portfolio</Button></div>
         {status}
         {p ? <><MetricCards portfolio={p} stats={rec?.before ?? null} /><div className="analysis-meta"><HighlightBadge variant="assets">{p.holdings.length} assets · {money(totalValue(p), currency)}</HighlightBadge><RiskBadge value={state.risk} /><HighlightBadge variant="green">Green preference · Level {state.green}</HighlightBadge></div><HoldingsTable portfolio={p} />
-          <div className="workspace-actions"><Button onClick={() => go("recommendations")}>View recommendations <ArrowRight /></Button><Button kind="ghost" disabled={exportBusy} onClick={() => void exportPortfolio("current")}>Export portfolio</Button><Button kind="ghost" onClick={() => { setState(s => ({ ...s, portfolio: null, plan: initialState.plan })); setNotice("Portfolio removed from this browser."); }}>Clear portfolio</Button></div></>
+          <div className="workspace-actions"><Button onClick={() => go("recommendations")}>View recommendations <ArrowRight /></Button><Button kind="ghost" disabled={exportBusy} onClick={() => void exportCurrent()}>Export portfolio</Button><Button kind="ghost" onClick={() => { setState(s => ({ ...s, portfolio: null, plan: initialState.plan })); setNotice("Portfolio removed from this browser."); }}>Clear portfolio</Button></div></>
           : <section className="workspace-panel empty-workspace"><FileArrowUp size={44} /><h2>Bring your holdings together.</h2><p>Use Upload portfolio above to add a CSV file and start reviewing your investments.</p><div className="empty-file-hint">CSV · Ticker, current value and currency · Up to 10 MB</div></section>}
         {universe && <UniverseSearch universe={universe} portfolio={p} />}
       </div>}
@@ -126,8 +131,11 @@ export default function Workbench({ entry, onHome }: { entry: "demo" | "resume" 
       {view === "settings" && <Settings risk={state.risk} green={state.green} maxInvestment={state.maxInvestment} currency={currency} onSave={(risk, green, maxInvestment) => { setState(s => ({ ...s, risk, green, maxInvestment })); setNotice("Settings saved."); }} />}
     </main></div>
     {uploadOpen && universe && <Dialog title="Upload portfolio" onClose={() => setUploadOpen(false)}><ImportFlow lookup={lookupIn(universe)} onImport={load} /></Dialog>}
-    {exportOpen && <Dialog title="Export portfolio" onClose={() => setExportOpen(false)}><div className="export-body"><p>Download a formatted portfolio report with share prices, whole units and total values.</p><label className="export-format">File format<select aria-label="Export format" value={exportFormat} onChange={e => setExportFormat(e.target.value as ExportFormat)}><option value="pdf">PDF · Portfolio report</option><option value="json">JSON · Structured data</option></select></label>{!result && <p className="export-empty">Generate recommendations to export your portfolio.</p>}<div className="export-options"><section><span className="export-icon"><SquaresFour size={24} /></span><h3>Recommended portfolio</h3><p>Share prices, units, totals, environmental scores and explanations.</p><Button disabled={!result || exportBusy} onClick={() => void exportPortfolio("recommended")}><DownloadSimple size={18} />{exportBusy ? "Preparing report…" : "Export recommended portfolio"}</Button></section><section><span className="export-icon"><ArrowsLeftRight size={24} /></span><h3>Portfolio comparison</h3><p>Old and new holdings, share quantities and performance changes.</p><Button disabled={!result || exportBusy} onClick={() => void exportPortfolio("comparison")}><DownloadSimple size={18} />{exportBusy ? "Preparing report…" : "Export portfolio comparison"}</Button></section>
-      <section className="export-tables"><span className="export-icon"><DownloadSimple size={24} /></span><h3>Tables · CSV</h3><p>The raw tables from this page, for a spreadsheet. Not affected by the file format above.</p><div className="export-table-list">{tableExports.map(t => <div key={t.label}><div><strong>{t.label}</strong><small>{t.detail}</small></div><Button kind="secondary" onClick={t.onExport}><DownloadSimple size={16} />CSV</Button></div>)}</div></section></div></div></Dialog>}
+    {exportOpen && <Dialog title="Export portfolio" onClose={() => setExportOpen(false)}><div className="export-body"><p>Choose a file format, then the table to download.</p>
+      <label className="export-format">File format<select aria-label="Export format" value={exportFormat} onChange={e => setExportFormat(e.target.value as TableFormat)}>{TABLE_FORMATS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}</select></label>
+      {!tables.length && <p className="export-empty">Generate recommendations to export your portfolio.</p>}
+      <div className="export-table-list">{tables.map(t => <div key={t.file}><div><strong>{t.title}</strong><small>{t.detail}</small></div><Button disabled={exportBusy} onClick={() => void exportTable(t)}><DownloadSimple size={16} />{exportBusy ? "Preparing…" : `Export ${exportFormat.toUpperCase()}`}</Button></div>)}</div>
+    </div></Dialog>}
     {notice && <div className="toast" role="status"><CheckCircle size={18} />{notice}</div>}
   </div>;
 }
