@@ -265,8 +265,11 @@ def test_portfolio_recommend_with_industry_filter(tmp_path, monkeypatch):
         assert d["screen"]["method"] == "filter" and d["screen"]["n_candidates"] == 18
         assert d["screen"]["spec"]["include_industries"] == ["Software"]  # unknown value dropped
         row = {t["firm_id"]: t for t in d["trades"]}
-        assert row["F000.HK"]["side"] == "sell (outside preferences)"
-        assert all(t["firm_id"] >= "F017" for t in d["trades"] if t["side"] == "buy")
+        # the holding outside the filter is left untouched; only filtered names are traded
+        assert row["F000.HK"]["side"] == "hold (outside filter)"
+        assert row["F000.HK"]["w_target"] == row["F000.HK"]["w_current"] == 0.5
+        assert all(t["firm_id"] >= "F017" for t in d["trades"] if t["side"] in ("buy", "sell"))
+        assert sum(t["w_target"] for t in d["trades"]) == pytest.approx(1.0, abs=1e-6)
         assert c.post("/api/portfolio/recommend", json=body).json()["trades"] == d["trades"]  # deterministic
         body["filters"] = {"exclude_sectors": ["Energy", "Tech"]}
         assert c.post("/api/portfolio/recommend", json=body).status_code == 400  # nothing left
