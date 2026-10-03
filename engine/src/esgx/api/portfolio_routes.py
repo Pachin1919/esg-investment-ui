@@ -56,7 +56,7 @@ def recommend_portfolio(req: RecommendRequest, store: Store) -> dict:
     prices, factors = prices.copy(), factors.copy()
     prices["month"], factors["month"] = to_month(prices["month"]), to_month(factors["month"])
     factors = factors.sort_values("month")
-    green = store.greenness()
+    green = store.greenness(req.market)
     if green.empty or "g" not in green:
         raise HTTPException(503, "greenness table not available yet")
     green = green.drop_duplicates(["firm_id", "year"])

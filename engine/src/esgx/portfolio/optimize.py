@@ -21,6 +21,33 @@ def _beta_frame(betas: pd.DataFrame) -> pd.DataFrame:
     return betas[cols].rename(columns={c: c[2:] for c in cols})
 
 
+def _solve_cvxpy(m, S, z, gamma, lam, kappa, scale, w0v, w_max, w_sum, g_floor_vec):
+    """Exact QP via cvxpy/CLARABEL when installed: the L1 turnover term is conic (norm1), so
+    the d+/d- split and its 2n extra variables and 2n constraints disappear — SLSQP scales
+    cubically in (variables + constraints) and crawls past a few hundred names, CLARABEL
+    does not. Returns the weight vector, or None when cvxpy is unavailable or fails."""
+    try:
+        import cvxpy as cp
+    except ImportError:
+        return None
+    n = len(m)
+    w = cp.Variable(n)
+    obj = w @ m - gamma / 2 * cp.quad_form(w, cp.psd_wrap(S)) + lam * w @ z
+    if w0v is not None and kappa > 0:
+        obj -= kappa * cp.norm1(w - w0v)
+    constraints = [cp.sum(w) == w_sum, w >= 0, w <= w_max]
+    if g_floor_vec is not None:
+        gv_filled, mask, floor = g_floor_vec
+        constraints.append(w @ gv_filled >= floor * (w @ mask))
+    try:
+        cp.Problem(cp.Maximize(obj / scale), constraints).solve(solver="CLARABEL")
+    except Exception:
+        return None
+    if w.value is None:
+        return None
+    return np.asarray(w.value, dtype=float).ravel()
+
+
 def factor_moments(factors: pd.DataFrame, cols: list[str]) -> tuple[pd.Series, pd.DataFrame]:
     """Mean and covariance of the factor return series (include gmb to use it in mu/Σ)."""
     df = factors[cols].astype(float).dropna()
@@ -76,22 +103,35 @@ def mean_variance_green(
     else:
         z = np.zeros(n)
     extra, extra_split = [], []
+    g_floor_vec = None
     if g_floor is not None and g is not None:
         valid = gg.notna().to_numpy()
         gvals = gg.to_numpy()
-        extra = [{"type": "ineq", "fun": lambda w, v=valid, gv=gvals: w[v] @ gv[v] - g_floor * w[v].sum()}]
-        extra_split = [{"type": "ineq", "fun": lambda x, v=valid, gv=gvals, n=n: x[:n][v] @ gv[v] - g_floor * x[:n][v].sum()}]
+        extra = [{"type": "ineq", "fun": lambda w, v=valid, gv=gvals: w[v] @ gv[v] - g_floor * w[v].sum(),
+                  "jac": lambda w, v=valid, gv=gvals: np.where(v, gv - g_floor, 0.0)}]
+        extra_split = [{"type": "ineq", "fun": lambda x, v=valid, gv=gvals, n=n: x[:n][v] @ gv[v] - g_floor * x[:n][v].sum(),
+                        "jac": lambda x, v=valid, gv=gvals, n=n: np.concatenate([np.where(v, gv - g_floor, 0.0), np.zeros(2 * n)])}]
+        g_floor_vec = (np.where(valid, gvals, 0.0), valid.astype(float), float(g_floor))
+
+    w0v = w0.reindex(names).fillna(0.0).to_numpy() if w0 is not None else None
+    fast = _solve_cvxpy(m, S, z, gamma, lam, kappa, scale, w0v, w_max, w_sum, g_floor_vec)
+    if fast is not None:
+        return pd.Series(fast, index=names)
 
     if w0 is None or kappa <= 0.0:
         def neg_utility(w: np.ndarray) -> float:
             return float(-(w @ m - gamma / 2 * w @ S @ w + lam * w @ z) / scale)
 
+        def neg_utility_jac(w: np.ndarray) -> np.ndarray:  # analytic: finite differences cost 3n+1 evals per gradient
+            return -(m - gamma * S @ w + lam * z) / scale
+
         res = minimize(
             neg_utility,
             np.full(n, w_sum / n) if w_start is None else w_start,
             method="SLSQP",
+            jac=neg_utility_jac,
             bounds=[(0.0, w_max)] * n,
-            constraints=[{"type": "eq", "fun": lambda w: w.sum() - w_sum}] + extra,
+            constraints=[{"type": "eq", "fun": lambda w: w.sum() - w_sum, "jac": lambda w: np.ones(w.shape[0])}] + extra,
         )
     else:
         w0v = w0.reindex(names).fillna(0.0).to_numpy()
@@ -100,15 +140,22 @@ def mean_variance_green(
             w, dp, dm = x[:n], x[n : 2 * n], x[2 * n :]
             return float(-(w @ m - gamma / 2 * w @ S @ w + lam * w @ z) / scale + kappa / scale * (dp.sum() + dm.sum()))
 
+        def neg_utility_split_jac(x: np.ndarray) -> np.ndarray:
+            w = x[:n]
+            return np.concatenate([-(m - gamma * S @ w + lam * z) / scale, np.full(2 * n, kappa / scale)])
+
+        eq1_jac = np.concatenate([np.ones(n), np.zeros(2 * n)])
+        eq2_jac = np.hstack([np.eye(n), -np.eye(n), np.eye(n)])
         x0 = np.concatenate([np.full(n, w_sum / n) if w_start is None else w_start, np.zeros(2 * n)])
         res = minimize(
             neg_utility_split,
             x0,
             method="SLSQP",
+            jac=neg_utility_split_jac,
             bounds=[(0.0, w_max)] * n + [(0.0, None)] * 2 * n,
             constraints=[
-                {"type": "eq", "fun": lambda x: x[:n].sum() - w_sum},
-                {"type": "eq", "fun": lambda x: x[:n] - w0v - x[n : 2 * n] + x[2 * n :]},
+                {"type": "eq", "fun": lambda x: x[:n].sum() - w_sum, "jac": lambda x, j=eq1_jac: j},
+                {"type": "eq", "fun": lambda x: x[:n] - w0v - x[n : 2 * n] + x[2 * n :], "jac": lambda x, j=eq2_jac: j},
             ]
             + extra_split,
         )

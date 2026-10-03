@@ -146,7 +146,8 @@ def test_targets_solver_hits_green_anchor_and_clamps():
 def test_target_vol_bisection_hits_and_clamps():
     n = 10
     names = [f"F{i}" for i in range(n)]
-    mu = pd.Series(0.0, index=names)
+    rng = np.random.default_rng(1)  # nonzero mu: with mu = 0 the vol target is a step function of gamma
+    mu = pd.Series(rng.normal(0.004, 0.002, n), index=names)
     cov = pd.DataFrame(np.diag(np.linspace(0.01, 0.09, n)), index=names, columns=names)
     w, gamma = mean_variance_green_target_vol(mu, cov, vol_target=0.22, w_max=0.2)
     S = cov.to_numpy()
