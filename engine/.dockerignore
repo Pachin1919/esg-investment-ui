@@ -1,0 +1,13 @@
+.git
+.venv
+.env
+.env.*
+data
+outputs
+brain
+app
+notebooks
+tests
+kimi-agents
+**/__pycache__
+*.parquet
