@@ -47,7 +47,7 @@ export async function fetchHealth(): Promise<HealthStatus | null> {
   }
 }
 
-export async function fetchCompanies(market: "hk" | "tw" = "hk"): Promise<Company[] | null> {
+export async function fetchCompanies(market: "hk" | "tw" | "all" = "all"): Promise<Company[] | null> {
   try {
     const res = await fetch(`/api/companies?market=${market}`);
     if (!res.ok) return null;

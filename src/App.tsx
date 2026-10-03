@@ -1416,7 +1416,7 @@ export default function App() {
   const [notice, setNotice] = useState("");
   const [portfolio, setPortfolio] = useState<Company[]>(companies);
   const [isLive, setIsLive] = useState(false);
-  const [market, setMarket] = useState<"hk" | "tw">("hk");
+  const [market, setMarket] = useState<"hk" | "tw" | "all">("all");
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
 
   useEffect(() => {
@@ -1548,10 +1548,16 @@ export default function App() {
           title="Market shown when the live engine answers (fixtures stay Hong Kong)"
         >
           <button
+            aria-pressed={market === "all"}
+            onClick={() => setMarket("all")}
+          >
+            All markets
+          </button>
+          <button
             aria-pressed={market === "hk"}
             onClick={() => setMarket("hk")}
           >
-            Hong Kong
+            HK &amp; China
           </button>
           <button
             aria-pressed={market === "tw"}
@@ -1561,7 +1567,7 @@ export default function App() {
           </button>
         </div>
         <span className="concept-note">
-          {isLive ? `Live Quantitative Engine · ${market === "hk" ? "HK/China" : "Taiwan"} Universe` : "Fictional data · Interactive prototype"}
+          {isLive ? `Live Quantitative Engine · ${market === "all" ? "HK/China + Taiwan" : market === "hk" ? "HK/China" : "Taiwan"} Universe` : "Fictional data · Interactive prototype"}
         </span>
       </div>
       {version === "blue" ? (
