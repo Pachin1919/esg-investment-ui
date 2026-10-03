@@ -20,7 +20,7 @@ from esgx.measures.carbon import align_annual_to_months
 from esgx.portfolio.exposures import exposure_snapshot
 from esgx.portfolio.optimize import factor_moments
 from esgx.portfolio.recommend import recommend
-from esgx.portfolio.screen import screen_universe
+from esgx.portfolio.screen import PreferenceFilter, filter_options, screen_filter, screen_universe
 from esgx.schema import to_month
 
 router = APIRouter(prefix="/api")
@@ -43,9 +43,22 @@ class RecommendRequest(BaseModel):
     vol_target: float | None = Field(None, gt=0.0, le=1.0)
     g_target: float | None = Field(None, gt=0.0, lt=1.0)
     preferences: str | None = None
+    filters: PreferenceFilter | None = None  # deterministic screen; wins over `preferences`
     kappa: float = Field(0.02, ge=0.0)
     w_max: float = Field(0.15, gt=0.0, le=1.0)
     market: str = "hk"
+
+
+@router.get("/portfolio/filters")
+def portfolio_filters(store: Store, market: str = "hk") -> dict:
+    """Sector -> industry values (with firm counts) of the firms the optimizer can trade in a
+    market: the choices for `RecommendRequest.filters`."""
+    prices = store.prices(market)
+    if prices.empty:
+        raise HTTPException(503, f"monthly prices for market {market!r} not available yet")
+    firms = store.firms()
+    priced = firms[firms["firm_id"].isin(prices["firm_id"].unique())]
+    return {"market": market, "n_firms": int(priced["firm_id"].nunique()), "sectors": filter_options(priced)}
 
 
 @router.post("/portfolio/recommend")
@@ -75,10 +88,12 @@ def recommend_portfolio(req: RecommendRequest, store: Store) -> dict:
                              on="month", how="left")
     f_mean, f_cov = factor_moments(fsrc, list(FF5_MOM) + (["gmb"] if use_gmb else []))
     screen, universe = None, None
-    if req.preferences and req.preferences.strip():
+    has_text = bool(req.preferences and req.preferences.strip())
+    if req.filters is not None or has_text:
         firms = store.firms()
         mktcap = prices.sort_values("month").groupby("firm_id")["mktcap"].last()
-        universe, screen = screen_universe(req.preferences, firms, mktcap)
+        universe, screen = (screen_filter(req.filters, firms, mktcap) if req.filters is not None
+                            else screen_universe(req.preferences, firms, mktcap))
         if not universe:
             raise HTTPException(400, "the preference filter leaves no candidate assets; "
                                      f"interpretation: {screen['spec']}")
