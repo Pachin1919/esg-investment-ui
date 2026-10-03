@@ -416,8 +416,8 @@
 .recommendation-builder .portfolio-budget-note{font-size:13px;padding:14px 20px;gap:10px}
 .recommendation-builder .builder-portfolio>.builder-footnote{margin-top:auto;padding-top:24px}
 
-/* Screenshot review refinements for the recommendations workspace. */
-.recommendation-workspace .app-sidebar nav{margin-top:45px}
+/* Keep the workspace navigation aligned after removing its redundant section label. */
+.app-sidebar nav{margin-top:45px}
 .recommendation-builder>.builder-setup{display:flex;flex-direction:column}
 .recommendation-builder .builder-setup form{display:flex;flex:1;flex-direction:column}
 .recommendation-builder .builder-setup .generate-recommendations{margin-top:32px}
