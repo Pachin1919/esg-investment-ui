@@ -19,6 +19,7 @@ from esgx.factors.timeseries import FF5_MOM
 from esgx.measures.carbon import align_annual_to_months
 from esgx.portfolio.exposures import exposure_snapshot
 from esgx.portfolio.optimize import factor_moments
+from esgx.portfolio.positions import add_positions
 from esgx.portfolio.recommend import recommend
 from esgx.portfolio.screen import PreferenceFilter, filter_options, screen_filter, screen_universe
 from esgx.schema import to_month
@@ -114,7 +115,7 @@ def recommend_portfolio(req: RecommendRequest, store: Store) -> dict:
         "turnover": out["turnover"],
         "before": out["before"],
         "after": out["after"],
-        "trades": records(out["trades"]),
+        "trades": records(add_positions(out["trades"], out["target_capital"], store.last_close(req.market))),
         "unmodeled": out["unmodeled"],
         "screen": screen,
         "coverage": {"n_modeled": len(betas), "n_scored": int(g.notna().sum()),
