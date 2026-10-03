@@ -68,6 +68,8 @@ class DataStore:
             "gmb_monthly_tw": self.outputs / "gmb_monthly_tw.csv",
             "emissions_tw": self.processed / "emissions_tw.parquet",
             "prices_hk": self.raw / "prices_monthly_hk.parquet",
+            "last_close_hk": self.raw / "last_close_hk.parquet",
+            "last_close_tw": self.raw / "last_close_tw.parquet",
             "prices_tw": self.raw / "prices_monthly_tw.parquet",
             "factors_asia_pacific_ex_japan": self.raw / "factors_monthly_asia_pacific_ex_japan.parquet",
             "factors_emerging": self.raw / "factors_monthly_emerging.parquet",
@@ -82,6 +84,12 @@ class DataStore:
         """Month-end rates for one pair (base currency per unit of the quoted currency)."""
         df = self.table(self._paths()["fx_monthly"])
         return df[df["pair"] == pair] if not df.empty else df
+
+    def last_close(self, market: str = "hk") -> pd.Series:
+        """firm_id -> latest close in the listing currency (empty when not ingested)."""
+        path = self._paths().get(f"last_close_{market}")
+        df = self.table(path) if path else pd.DataFrame()
+        return df.set_index("firm_id")["close"] if not df.empty else pd.Series(dtype=float)
 
     def factors(self, region: str = "asia_pacific_ex_japan") -> pd.DataFrame:
         path = self._paths().get(f"factors_{region}")
