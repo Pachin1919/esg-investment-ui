@@ -59,15 +59,17 @@ def recommend(
     kappa: float = 0.02,
     w_max: float = 0.15,
     min_trade: float = 0.005,
+    universe: list[str] | None = None,
 ) -> dict:
     """Trade list that moves the current portfolio toward the target risk/green profile.
 
     `holdings`: ticker -> capital. `betas`: per-firm factor betas indexed by firm_id (from
-    `exposure_snapshot` / latest `green_exposures`); its index is the candidate universe.
-    `g`: latest greenness per firm. `kappa` is the utility cost per unit one-way turnover:
-    the green-term gradient is O(lam * z) ~ 1, so kappa 0.01-0.1 is the meaningful range.
-    Returns weights, trades, before/after stats and the list of unmodeled holdings
-    (frozen, not traded)."""
+    `exposure_snapshot` / latest `green_exposures`). `g`: latest greenness per firm. `kappa`
+    is the utility cost per unit one-way turnover: the green-term gradient is O(lam * z) ~ 1,
+    so kappa 0.01-0.1 is the meaningful range. `universe`: candidate subset from the
+    preference screen (`screen.screen_universe`); holdings outside it are recommended for
+    sale ("sell (outside preferences)"), holdings without betas stay frozen. Returns
+    weights, trades, before/after stats and the unmodeled list."""
     gamma = _score(risk_score, RISK_GAMMA, "risk_score")
     lam = _score(green_score, GREEN_LAM, "green_score")
     h = pd.Series(holdings, dtype=float).dropna()
@@ -75,22 +77,31 @@ def recommend(
         raise ValueError("holdings must be non-negative with positive total capital")
     total = float(h.sum())
 
-    names = betas.index
-    modeled = h.index.intersection(names)
-    unmodeled = h.index.difference(names)
+    all_names = betas.index
+    candidates = all_names.intersection(pd.Index(universe)) if universe is not None else all_names
+    if len(candidates) == 0:
+        raise ValueError("the preference filter leaves no candidate assets")
+    unmodeled = h.index.difference(all_names)
+    outside_pref = h.index.intersection(all_names).difference(candidates)
     w_frozen = float(h[unmodeled].sum() / total)
     if w_frozen >= 1.0:
         raise ValueError("none of the holdings have estimated betas; nothing to optimize")
 
-    w0 = pd.Series(0.0, index=names)
-    w0[modeled] = h[modeled] / total
-    mu = factor_expected_returns(betas, f_mean)
-    cov = factor_cov(betas, f_cov, idio_var)
+    sub = betas.loc[candidates]
+    w0c = pd.Series(0.0, index=candidates)
+    w0c[h.index.intersection(candidates)] = h[h.index.intersection(candidates)] / total
+    mu = factor_expected_returns(sub, f_mean)
+    cov = factor_cov(sub, f_cov, idio_var)
     w = mean_variance_green(mu, cov, g=g, lam=lam, gamma=gamma, w_max=w_max,
-                            w0=w0, kappa=kappa, w_sum=1.0 - w_frozen)
+                            w0=w0c, kappa=kappa, w_sum=1.0 - w_frozen)
 
-    w0_full = pd.concat([w0, h[unmodeled] / total])
-    w_full = pd.concat([w, h[unmodeled] / total])
+    w0_full = pd.Series(0.0, index=all_names)
+    w0_full[h.index.intersection(all_names)] = h[h.index.intersection(all_names)] / total
+    w_full = pd.Series(0.0, index=all_names)
+    w_full[candidates] = w
+    frozen = h[unmodeled] / total
+    w0_full = pd.concat([w0_full, frozen])
+    w_full = pd.concat([w_full, frozen])
     trades = pd.DataFrame({
         "firm_id": w_full.index,
         "w_current": w0_full.values,
@@ -101,15 +112,17 @@ def recommend(
     trades["side"] = np.where(trades["dw"] > min_trade, "buy",
                               np.where(trades["dw"] < -min_trade, "sell", "hold"))
     trades.loc[trades["firm_id"].isin(unmodeled), "side"] = "frozen (unmodeled)"
+    trades.loc[trades["firm_id"].isin(outside_pref), "side"] = "sell (outside preferences)"
     trades = trades.sort_values("dw", ascending=False).reset_index(drop=True)
     return {
         "params": {"risk_score": int(risk_score), "green_score": int(green_score),
-                   "gamma": gamma, "lam": lam, "kappa": kappa, "w_max": w_max},
+                   "gamma": gamma, "lam": lam, "kappa": kappa, "w_max": w_max,
+                   "n_candidates": len(candidates)},
         "total_capital": total,
         "weights": w,
         "trades": trades,
-        "before": _stats(w0, mu, cov, g, betas),
-        "after": _stats(w, mu, cov, g, betas),
+        "before": _stats(w0_full[w0_full.index.isin(all_names)], mu, cov, g, sub),
+        "after": _stats(w, mu, cov, g, sub),
         "turnover": float(0.5 * trades["dw"].abs().sum()),
         "unmodeled": [{"firm_id": f, "capital": float(h[f]), "weight": float(h[f] / total)}
                       for f in unmodeled],

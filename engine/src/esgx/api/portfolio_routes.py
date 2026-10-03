@@ -20,6 +20,7 @@ from esgx.measures.carbon import align_annual_to_months
 from esgx.portfolio.exposures import exposure_snapshot
 from esgx.portfolio.optimize import factor_moments
 from esgx.portfolio.recommend import recommend
+from esgx.portfolio.screen import screen_universe
 from esgx.schema import to_month
 
 router = APIRouter(prefix="/api")
@@ -38,6 +39,7 @@ class RecommendRequest(BaseModel):
     holdings: dict[str, float]
     risk_score: int = Field(3, ge=1, le=5)
     green_score: int = Field(3, ge=1, le=5)
+    preferences: str | None = None
     kappa: float = Field(0.02, ge=0.0)
     w_max: float = Field(0.15, gt=0.0, le=1.0)
     market: str = "hk"
@@ -69,10 +71,18 @@ def recommend_portfolio(req: RecommendRequest, store: Store) -> dict:
         fsrc = factors.merge(gmb_df[["month", "gmb_reg"]].rename(columns={"gmb_reg": "gmb"}),
                              on="month", how="left")
     f_mean, f_cov = factor_moments(fsrc, list(FF5_MOM) + (["gmb"] if use_gmb else []))
+    screen, universe = None, None
+    if req.preferences and req.preferences.strip():
+        firms = store.firms()
+        mktcap = prices.sort_values("month").groupby("firm_id")["mktcap"].last()
+        universe, screen = screen_universe(req.preferences, firms, mktcap)
+        if not universe:
+            raise HTTPException(400, "the preference filter leaves no candidate assets; "
+                                     f"interpretation: {screen['spec']}")
     try:
         out = recommend(req.holdings, betas, g, f_mean, f_cov, betas["idio_var"],
                         risk_score=req.risk_score, green_score=req.green_score,
-                        kappa=req.kappa, w_max=req.w_max)
+                        kappa=req.kappa, w_max=req.w_max, universe=universe)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     return {
@@ -83,6 +93,7 @@ def recommend_portfolio(req: RecommendRequest, store: Store) -> dict:
         "after": out["after"],
         "trades": records(out["trades"]),
         "unmodeled": out["unmodeled"],
+        "screen": screen,
         "coverage": {"n_modeled": len(betas), "n_scored": int(g.notna().sum()),
                      "gmb_months": int(gmb_df["gmb_reg"].notna().sum()) if use_gmb else 0},
     }

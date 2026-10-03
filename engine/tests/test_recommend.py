@@ -71,3 +71,18 @@ def test_mean_variance_green_w0_kappa():
     sticky = mean_variance_green(mu, cov, g=g, lam=0.5, w_max=0.2, w0=w0, kappa=1.0)
     assert sticky["F0"] > free["F0"]  # the penalty defends the current position
     assert sticky.sum() == pytest.approx(1.0)
+
+
+def test_universe_subset_sells_outside_preferences():
+    betas, g, f_mean, f_cov, idio = _inputs()
+    holdings = {"F0": 5000.0, "F1": 5000.0}
+    subset = [f"F{i}" for i in range(6, 12)]  # green half, excludes the holdings
+    out = recommend(holdings, betas, g, f_mean, f_cov, idio, green_score=4, kappa=0.0,
+                    w_max=0.2, universe=subset)
+    row = out["trades"].set_index("firm_id")
+    assert row.loc["F0", "side"] == "sell (outside preferences)" and row.loc["F0", "w_target"] == 0
+    assert set(out["weights"].index) == set(subset)
+    assert out["params"]["n_candidates"] == 6
+    assert out["trades"]["w_target"].sum() == pytest.approx(1.0)
+    with pytest.raises(ValueError, match="no candidate"):
+        recommend(holdings, betas, g, f_mean, f_cov, idio, universe=["NOPE"])

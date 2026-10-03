@@ -191,3 +191,44 @@ def test_portfolio_recommend_end_to_end(tmp_path):
         assert c.post("/api/portfolio/recommend", json={"holdings": {"F000.HK": 1}, "risk_score": 9}).status_code == 422
     finally:
         app.dependency_overrides.clear()
+
+
+def _portfolio_store_with_universe(tmp_path):
+    store = _portfolio_store(tmp_path)
+    n = 35
+    uni = pd.DataFrame({
+        "firm_id": [f"F{i:03d}.HK" for i in range(n)],
+        "name": [f"Firm {i:03d}" for i in range(n)],
+        "sector": ["Energy"] * 17 + ["Tech"] * 18,
+        "industry": ["Oil & Gas"] * 17 + ["Software"] * 18,
+        "country": "Hong Kong",
+    })
+    uni.to_parquet(store.raw / "universe_hsi.parquet")
+    return store
+
+
+def test_portfolio_recommend_with_preferences_keyword_screen(tmp_path, monkeypatch):
+    from esgx.api import portfolio_routes as pr
+
+    monkeypatch.delenv("MOONSHOT_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    store = _portfolio_store_with_universe(tmp_path)
+    app.dependency_overrides[pr._store] = lambda: store
+    try:
+        c = TestClient(app)
+        r = c.post("/api/portfolio/recommend", json={
+            "holdings": {"F000.HK": 5000.0, "F020.HK": 5000.0},
+            "risk_score": 3, "green_score": 4, "preferences": "tech", "kappa": 0.0,
+        })
+        assert r.status_code == 200, r.json()
+        d = r.json()
+        assert d["screen"]["method"] == "keyword" and d["screen"]["n_candidates"] == 18
+        row = {t["firm_id"]: t for t in d["trades"]}
+        assert row["F000.HK"]["side"] == "sell (outside preferences)" and row["F000.HK"]["w_target"] == 0
+        assert all(t["firm_id"] >= "F017" for t in d["trades"] if t["side"] == "buy")
+        r2 = c.post("/api/portfolio/recommend", json={
+            "holdings": {"F000.HK": 1000.0}, "preferences": "xyz-no-such-sector"})
+        assert r2.status_code == 200  # no filterable preference -> full universe, screen spec empty
+        assert r2.json()["screen"]["n_candidates"] == 35
+    finally:
+        app.dependency_overrides.clear()
