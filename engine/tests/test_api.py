@@ -270,9 +270,35 @@ def test_portfolio_recommend_with_industry_filter(tmp_path, monkeypatch):
         assert row["F000.HK"]["w_target"] == row["F000.HK"]["w_current"] == 0.5
         assert all(t["firm_id"] >= "F017" for t in d["trades"] if t["side"] in ("buy", "sell"))
         assert sum(t["w_target"] for t in d["trades"]) == pytest.approx(1.0, abs=1e-6)
+        # stats describe the whole portfolio: the kept holding counts, and factor betas are reported
+        assert d["after"]["n_positions"] >= 2 and d["after"]["top_weight"] == pytest.approx(0.5, abs=1e-6)
+        assert {"mkt_rf", "smb", "hml", "rmw", "cma", "mom"} <= set(d["after"]["exposures"])
+        assert d["before"]["exposures"]["mkt_rf"] == pytest.approx(0.9, abs=0.3)  # fixture loads 0.9 on market
         assert c.post("/api/portfolio/recommend", json=body).json()["trades"] == d["trades"]  # deterministic
         body["filters"] = {"exclude_sectors": ["Energy", "Tech"]}
         assert c.post("/api/portfolio/recommend", json=body).status_code == 400  # nothing left
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_portfolio_recommend_reports_share_counts(tmp_path):
+    from esgx.api import portfolio_routes as pr
+
+    store = _portfolio_store(tmp_path)
+    pd.DataFrame({"firm_id": ["F000.HK", "F001.HK"], "date": "2026-10-02", "close": [50.0, 0.0]}).to_parquet(
+        store.raw / "last_close_hk.parquet")
+    app.dependency_overrides[pr._store] = lambda: store
+    try:
+        d = TestClient(app).post("/api/portfolio/recommend", json={
+            "holdings": {"F000.HK": 5020.0, "F001.HK": 4980.0}, "kappa": 0.0}).json()
+        row = {t["firm_id"]: t for t in d["trades"]}
+        assert row["F000.HK"]["capital_current"] == pytest.approx(5020.0)
+        assert row["F000.HK"]["price"] == 50.0 and row["F000.HK"]["shares_current"] == 100  # floor(5020 / 50)
+        assert row["F000.HK"]["shares_delta"] == row["F000.HK"]["shares_target"] - 100
+        # no usable price -> capital is still reported, share counts are null rather than guessed
+        assert row["F001.HK"]["price"] is None and row["F001.HK"]["shares_current"] is None
+        assert row["F002.HK"]["shares_target"] is None
+        assert sum(t["capital_target"] for t in d["trades"]) == pytest.approx(10000.0, rel=1e-6)
     finally:
         app.dependency_overrides.clear()
 

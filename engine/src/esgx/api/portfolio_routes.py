@@ -21,6 +21,7 @@ from pydantic import BaseModel, Field
 from esgx.api.store import DataStore, records
 from esgx.ingest.fx import BASE_CURRENCY, pair_for
 from esgx.portfolio.inputs import ModelInputs, combine_inputs, market_inputs, to_base_currency
+from esgx.portfolio.positions import add_positions
 from esgx.portfolio.recommend import recommend
 from esgx.portfolio.screen import PreferenceFilter, filter_options, screen_filter, screen_universe
 from esgx.schema import to_month
@@ -73,6 +74,20 @@ def _inputs(store: DataStore, market: str, convert: bool) -> tuple[ModelInputs, 
     return inp, mktcap
 
 
+def _last_close(store: DataStore, markets, convert: bool) -> pd.Series:
+    """firm_id -> latest close in the currency the capital is stated in: the listing currency
+    for a single market, HKD (latest month-end rate) when markets are pooled. A market whose
+    rate is missing gets no price, so its share counts stay null."""
+    out = []
+    for m in markets:
+        close = store.last_close(m)
+        if convert and (pair := pair_for(m)) and not close.empty:
+            fx = store.fx(pair)
+            close = close * fx.sort_values("month")["rate"].iloc[-1] if not fx.empty else close.iloc[:0]
+        out.append(close)
+    return pd.concat(out) if out else pd.Series(dtype=float)
+
+
 @router.get("/portfolio/filters")
 def portfolio_filters(store: Store, market: str = "hk") -> dict:
     """Sector -> industry values (with firm counts) of the firms the optimizer can trade in a
@@ -123,7 +138,8 @@ def recommend_portfolio(req: RecommendRequest, store: Store) -> dict:
         "turnover": out["turnover"],
         "before": out["before"],
         "after": out["after"],
-        "trades": records(out["trades"].assign(market=out["trades"]["firm_id"].map(market_of))),
+        "trades": records(add_positions(out["trades"], out["target_capital"], _last_close(store, parts, pooled))
+                          .assign(market=lambda t: t["firm_id"].map(market_of))),
         "unmodeled": out["unmodeled"],
         "screen": screen,
         "coverage": {"n_modeled": len(betas), "n_scored": int(g.notna().sum()), "gmb_months": inp.gmb_months},

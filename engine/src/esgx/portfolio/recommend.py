@@ -49,11 +49,19 @@ def _stats(w: pd.Series, mu: pd.Series, cov: pd.DataFrame, g: pd.Series, betas: 
     gf = g.reindex(w.index)
     g_avg = float((w * gf).sum() / w[gf.notna()].sum()) if gf.notna().any() and w[gf.notna()].sum() > 0 else None
     bg = betas["b_gmb"].reindex(w.index) if "b_gmb" in betas.columns else pd.Series(np.nan, index=w.index)
+    b = betas.reindex(w.index)
+    held = w[w > 1e-4]
     return {
         "ann_ret": float(12 * w @ m),
         "ann_vol": float(np.sqrt(max(12 * w @ S @ w, 0.0))),
         "g_avg": g_avg,
         "b_gmb": float((w * bg.fillna(0.0)).sum()) if bg.notna().any() else None,
+        # weighted factor betas (mkt_rf, smb, hml, rmw, cma, mom, gmb when estimated)
+        "exposures": {c[2:]: float((w * b[c].fillna(0.0)).sum())
+                      for c in b.columns if c.startswith("b_") and b[c].notna().any()},
+        "n_positions": len(held),
+        "top_weight": float(held.max()) if len(held) else 0.0,
+        "effective_n": float(1.0 / (held / held.sum()).pow(2).sum()) if len(held) else 0.0,
     }
 
 
@@ -91,7 +99,7 @@ def recommend(
     recommended for sale ("sell (outside preferences)"), holdings without betas stay frozen.
     `keep_outside`: holdings outside `universe` are left untouched instead ("hold (outside
     filter)") — the universe then only restricts what is bought and rebalanced; like the
-    unmodeled ones they are outside the optimized sleeve and the before/after stats.
+    unmodeled ones they are outside the optimized sleeve, but they count in the before/after stats.
     Returns weights, trades, before/after stats and the unmodeled list."""
     lam = _score(green_score, GREEN_LAM, "green_score")  # fallback when the anchor is unusable
     if g_target is not None and not 0 < g_target < 1:
@@ -140,6 +148,7 @@ def recommend(
     w_full = pd.Series(0.0, index=all_names)
     w_full[candidates] = w
     w_full[kept] = h[kept] / target_total
+    w_modeled = w_full.copy()  # every holding with betas, kept ones included
     frozen = h[unmodeled] / target_total
     w0_full = pd.concat([w0_full, frozen])
     w_full = pd.concat([w_full, frozen])
@@ -156,6 +165,8 @@ def recommend(
     trades.loc[trades["firm_id"].isin(outside_pref), "side"] = (
         "hold (outside filter)" if keep_outside else "sell (outside preferences)")
     trades = trades.sort_values("dw", ascending=False).reset_index(drop=True)
+    # stats cover every modeled holding, so before and after describe the same portfolio
+    mu_all, cov_all = factor_expected_returns(betas, f_mean), factor_cov(betas, f_cov, idio_var)
     w0_current = pd.Series(0.0, index=all_names)
     w0_current[h.index.intersection(all_names)] = h[h.index.intersection(all_names)] / total
     return {
@@ -169,8 +180,8 @@ def recommend(
         "target_capital": target_total,
         "weights": w,
         "trades": trades,
-        "before": _stats(w0_current, mu, cov, g, sub),
-        "after": _stats(w, mu, cov, g, sub),
+        "before": _stats(w0_current, mu_all, cov_all, g, betas),
+        "after": _stats(w_modeled, mu_all, cov_all, g, betas),
         "turnover": float(0.5 * trades["dw"].abs().sum()),
         "unmodeled": [{"firm_id": f, "capital": float(h[f]), "weight": float(h[f] / total)}
                       for f in unmodeled],
