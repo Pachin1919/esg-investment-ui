@@ -112,7 +112,7 @@ def _post(store: DataStore, **body) -> tuple[int, dict]:
 
 def test_recommend_all_markets_trades_in_both(tmp_path):
     store = _store(tmp_path)
-    code, d = _post(store, holdings={"F000.HK": 6000.0, "F001.HK": 4000.0}, market="all",
+    code, d = _post(store, holdings={"F000.HK": 6000.0, "F001.HK": 4000.0}, market="all", pool="full",
                     risk_score=3, green_score=5, kappa=0.0, max_new_capital=5000.0)
     assert code == 200, d
     assert d["base_currency"] == "HKD" and d["params"]["n_candidates"] == 32
@@ -139,7 +139,7 @@ def test_industry_filter_and_filter_tree_across_markets(tmp_path):
         pd.DataFrame({"firm_id": [f"F{i:03d}.{sfx}" for i in range(n)], "name": "Firm", "sector": "Tech",
                       "industry": ["Software" if i % 2 else "Chips" for i in range(n)], "country": sfx}
                      ).to_parquet(store.raw / f"{name}.parquet")
-    code, d = _post(store, holdings={"F000.HK": 6000.0, "F001.TW": 4000.0}, market="all", kappa=0.0,
+    code, d = _post(store, holdings={"F000.HK": 6000.0, "F001.TW": 4000.0}, market="all", pool="full", kappa=0.0,
                     filters={"include_industries": ["Software"]})
     assert code == 200, d
     assert d["screen"]["method"] == "filter" and d["screen"]["n_candidates"] == 16  # 6 HK + 10 TW
@@ -148,7 +148,37 @@ def test_industry_filter_and_filter_tree_across_markets(tmp_path):
     assert {t["market"] for t in d["trades"] if t["side"] == "buy"} <= {"hk", "tw"}
     app.dependency_overrides[pr._store] = lambda: store
     try:
-        tree = TestClient(app).get("/api/portfolio/filters", params={"market": "all"}).json()
+        tree = TestClient(app).get("/api/portfolio/filters", params={"market": "all", "pool": "full"}).json()
     finally:
         app.dependency_overrides.clear()
     assert tree["n_firms"] == 32
+
+
+def test_largest_per_sector_takes_every_sector_first():
+    from esgx.portfolio.pool import largest_per_sector
+
+    caps = {"A1": 9.0, "A2": 8.0, "A3": 7.0, "B1": 2.0, "B2": 1.0, "C1": 0.5, "NEW": 99.0}
+    prices = pd.DataFrame([{"firm_id": f, "month": m, "ret": 0.01, "mktcap": c}
+                           for f, c in caps.items() for m in MONTHS[: 6 if f == "NEW" else 30].astype(str)])
+    sectors = pd.Series({f: f[0] for f in caps if f != "NEW"})
+    assert largest_per_sector(prices, sectors, 3) == ["A1", "B1", "C1"]  # one per sector before a second A
+    assert largest_per_sector(prices, sectors, 4) == ["A1", "B1", "C1", "A2"]
+    # NEW is the largest but has 6 months of returns: not eligible; a holding is added on top
+    assert largest_per_sector(prices, sectors, 2, keep=["B2", "A1", "ZZ"]) == ["A1", "B1", "B2"]
+
+
+def test_balanced_pool_matches_home_market_size(tmp_path):
+    from esgx.api import portfolio_routes as pr
+
+    store = _store(tmp_path)  # 12 HK + 20 TW priced names, no sectors -> the 12 first TW by cap
+    code, d = _post(store, holdings={"F000.HK": 6000.0, "F019.TW": 4000.0}, market="all", kappa=0.0)
+    assert code == 200, d
+    assert d["pool"] == "balanced" and d["markets"]["hk"]["n_modeled"] == 12
+    assert d["markets"]["tw"]["n_modeled"] == 13  # 12 = as many as HK, + the F019.TW holding
+    assert d["unmodeled"] == [] and d["params"]["n_candidates"] == 25
+    app.dependency_overrides[pr._store] = lambda: store
+    try:
+        tree = TestClient(app).get("/api/portfolio/filters", params={"market": "all"}).json()
+    finally:
+        app.dependency_overrides.clear()
+    assert tree["n_firms"] == 0  # no universe files in this store; the count is over firms with a sector

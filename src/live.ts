@@ -31,8 +31,8 @@ export function samplePortfolio(universe: Universe): Portfolio | null {
   return holdings.length ? { name: "Sample portfolio", baseCurrency: "HKD", asOf: "Sample", isDemo: true, holdings } : null;
 }
 export const sectorColor = (sector: string, sectors: string[]) => SECTOR_COLORS[Math.max(0, sectors.indexOf(sector)) % SECTOR_COLORS.length];
-/** Hong Kong unless the portfolio holds Taiwan-listed stocks, then both markets pooled. */
-export const marketOf = (p: Portfolio): "hk" | "all" => (p.holdings.some((h) => /\.TWO?$/.test(h.ticker)) ? "all" : "hk");
+/** Every recommendation pools Hong Kong with the balanced Taiwan pool (as many Taiwan names as Hong Kong, largest per sector). */
+export const POOLED_MARKET = "all" as const;
 /** What the optimizer receives: capital per ticker (cash rows are left out). */
 export const holdingsRequest = (p: Portfolio) =>
   Object.fromEntries(p.holdings.filter((h) => h.assetClass.toLowerCase() !== "cash").map((h) => [h.ticker, h.value]));

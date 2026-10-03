@@ -6,7 +6,7 @@ import Brand from "./Brand";
 import Comparison from "./Comparison";
 import { performanceCsv, positionsCsv, recommendedPositionsCsv } from "./comparisonExport";
 import ImportFlow from "./ImportFlow";
-import { holdingsRequest, lookupIn, marketOf, newCapital, recommendedPortfolio, samplePortfolio, withPrices } from "./live";
+import { holdingsRequest, lookupIn, POOLED_MARKET, newCapital, recommendedPortfolio, samplePortfolio, withPrices } from "./live";
 import type { Plan, Universe } from "./live";
 import { HoldingsTable, MetricCards, UniverseSearch } from "./Overview";
 import { download, money, totalValue } from "./portfolio";
@@ -56,7 +56,7 @@ export default function Workbench({ entry, onHome }: { entry: "demo" | "resume" 
     return () => { live = false; };
   }, [entry]);
 
-  const stored = state.portfolio, market = stored ? marketOf(stored) : "hk";
+  const stored = state.portfolio, market = POOLED_MARKET;
   useEffect(() => { let live = true; fetchFilterOptions(market).then(s => { if (live) setSectors(s); }); return () => { live = false; }; }, [market]);
 
   // One engine call serves both pages: `before` describes the current portfolio, the rest the recommendation.
