@@ -54,7 +54,7 @@ FX conversion is performed against the chosen reporting currency before weightin
 
 The four sample rows convert to HKD 28,000 + 24,000 + 20,000 + 22,000 = HKD 94,000. Weight = converted holding value / total converted holding value.
 
-For this MVP, import long-only equity holdings with positive values. Surface unresolved stock codes, unsupported currencies, mixed valuation dates, invalid amounts and duplicates for correction; do not silently drop them. Cash, short positions and leveraged products require additional contract definitions.
+The browser preview accepts positive-value equities, funds and cash. It preserves every row rather than silently dropping holdings; it does not resolve security identities or merge duplicate rows across accounts. Mixed valuation dates and invalid amounts are rejected. A live backend must define identifier resolution, duplicate handling, supported currencies, cash analysis, short positions and leveraged products before providing analytical results.
 
 ## Response examples
 
@@ -74,7 +74,7 @@ All metrics use the same valuation date and model version when compared. Changes
 - `weight`, `expectedReturn` and `greenDataCoverage` use fractions: 0.08 displays as 8%.
 - Return deltas also use fractions: a delta of 0.005 displays as +0.5 percentage points, not +0.5% relative growth.
 - `eScore` and `greenScore` use points on the proposed 0–10 scale.
-- Preference fields use integers on the proposed 1–5 scale.
+- Preference fields use integers on the confirmed 1–5 scale; model mapping remains pending.
 - Monetary amounts carry a currency; `fxRateToBase` is reporting-currency units per one holding-currency unit.
 - Use sufficient internal precision and round only for display; displayed weights may not sum to exactly 100% due to rounding.
 

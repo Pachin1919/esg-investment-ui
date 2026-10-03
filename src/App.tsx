@@ -32,7 +32,7 @@ function LandingPage({ onAnalyze, onDemo }: { onAnalyze: () => void; onDemo: () 
   const steps = [
     { icon: FileArrowUp, title: "Import holdings", text: "Upload a portfolio file or start with a clearly labeled sample." },
     { icon: SlidersHorizontal, title: "Set preferences", text: "Choose one of five risk levels and your environmental priority." },
-    { icon: ListChecks, title: "Review recommendations", text: "See ranked ideas and the reason each one may fit." },
+    { icon: ListChecks, title: "Review recommendations", text: "Review stock candidates, their metrics and available reasons." },
     { icon: ArrowsLeftRight, title: "Simulate investment", text: "Choose a candidate, an amount and how to fund it." },
     { icon: ListChecks, title: "Compare portfolios", text: "Review current and simulated return, green score and holding weights." },
   ];

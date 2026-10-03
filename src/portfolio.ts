@@ -114,6 +114,7 @@ export function parsePortfolioImport(text: string): ParsedImport {
   const dates = new Set<string>();
   const holdings = rows.slice(1).map((r, i): Holding => {
     if (r.length !== rows[0].length) throw new Error(`Row ${i + 2}: column count does not match the header. Quote names containing commas.`);
+    if (!/^(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?$/.test(r[value])) throw new Error(`Row ${i + 2}: use a positive market value with a decimal point, for example 23878.25. Commas may only separate thousands.`);
     const amount = Number(r[value].replace(/,/g, ""));
     const kind = assetClass >= 0 ? r[assetClass] : "Equity";
     const symbol = r[ticker];
