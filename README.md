@@ -12,7 +12,7 @@
 
 ## 本地运行
 
-使用 Node.js 22.12+：
+使用 Node.js 22.22.2+ 或 24.15+（包含测试依赖要求）：
 
 ```powershell
 npm ci
@@ -24,6 +24,7 @@ npm run dev
 ```powershell
 npm run build
 npm run preview
+npm test
 ```
 
 ## 已实现
@@ -33,9 +34,11 @@ npm run preview
 - 五档风险承受度，按绿、蓝、黄、橙、红可视化；五档绿色偏好。
 - 组合预期收益、绿色评分、可选波动率的指标卡。
 - 公司详情突出 Expected return 和 E-score。
-- 根据风险、绿色偏好和最高投资金额动态筛选及排序候选；关键词搜索仅返回推荐公司。
-- 按整数股数或金额预算模拟，展示单价 × 股数 = 总价；金额模式自动向下取整并展示未使用预算。
-- 新增资金模式，以及按整数股数减持并可补充资金的再平衡模式。
+- Recommendations 三栏工作台：左侧行业选择与预算增幅 → 中间推荐公司勾选 → 右侧实时组合、指标、行业配置环形图及持仓。
+- 根据行业、风险、绿色偏好和投资上限筛选及排序公司；默认全选，关键词搜索仅过滤列表，不改变当前组合。
+- 左侧行业草稿需点击 Generate recommendations 确认；预算默认相对原组合增加 10%，受 Settings 金额上限约束。
+- 取消／恢复公司勾选会重新分配预算，始终使用整数股数；零股头预算作为未配置金额单独展示，不混入股票指标。
+- 资产概览、绿色偏好和投资上限使用不同颜色的高亮标签。
 - 新旧组合金额、收益、绿色评分、数据覆盖率及每家公司单价、股数、总价和权重比较。
 - 公司名称与组合指标支持鼠标悬浮、键盘聚焦和点击解释。
 - 当前组合、推荐组合及新旧对比可导出分页 PDF 报表；推荐及对比保留 JSON 结构化导出。
@@ -52,7 +55,7 @@ CSV 可提供 `units` / `quantity` / `shares` 和 `unit_price` / `price`。只�
 
 环境评分越高表示越环保，不代表收益更高或投资更好。最终评分范围与组合聚合方法待确认；演示使用 0–10。年预期收益为拟采用展示方式，详细口径仍待后端确认。波动率尚未提供，UI 不伪造该数值。
 
-本轮不使用 E_weight，也不使用依赖它的旧 greenness 公式。没有历史趋势、行业对比或组合预测图。
+本轮不使用 E_weight，也不使用依赖它的旧 greenness 公式。行业图展示当前勾选公司按实际持仓市值计算的配置比例，不是历史趋势或收益预测。
 
 本地导入数据与模拟草稿保存于浏览器 localStorage，可使用 Clear portfolio 清除。没有账户连接、交易或支付。
 
@@ -61,6 +64,8 @@ CSV 可提供 `units` / `quantity` / `shares` 和 `unit_price` / `price`。只�
 ```text
 src/App.tsx          绿色首页、首页与工作台路由切换
 src/Workbench.tsx    导入、偏好、指标、推荐、公司详情与模拟流程
+src/RecommendationsBuilder.tsx  行业、公司、实时组合三栏界面
+src/recommendationBuilder.ts    行业筛选、预算限制及整数股数分配
 src/portfolio.ts     CSV 解析、币种归一化、样例与本地金额/权重演示
 src/marketData.ts    可替换的本地行情、公司数据及自动汇率服务
 src/InfoPopover.tsx 公司绿色评分与组合指标解释
@@ -71,5 +76,7 @@ docs/api-examples/  暂定契约、导入样例和虚构 JSON
 ```
 
 技术栈：React 19、TypeScript、Vite、Phosphor Icons、原生 CSS。
+
+`npm test` 使用 Node 测试运行器及 jsdom，覆盖三栏生成、实时勾选、搜索、持久化、预算校验及 PDF／JSON 导出数据。
 
 参见 [演示指南](docs/demo-guide.md) 与 [暂定接口和样例](docs/api-examples/README.md)。

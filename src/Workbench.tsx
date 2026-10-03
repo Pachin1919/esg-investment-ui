@@ -1,22 +1,23 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { ArrowLeft, ArrowRight, ArrowsLeftRight, CheckCircle, DownloadSimple, FileArrowUp, Gauge, GearSix, Leaf, MagnifyingGlass, Sparkle, SquaresFour, X } from "@phosphor-icons/react";
-import { candidates, displayTicker, download, greenExplanation, hydratePortfolio, importTemplate, metrics, money, normalizeImport, parsePortfolioImport, percent, recommendStocks, samplePortfolio, score, sharePrice, simulate, totalValue, unitMoney } from "./portfolio";
-import type { Candidate, Holding, ParsedImport, Portfolio } from "./portfolio";
+import { ArrowRight, ArrowsLeftRight, CheckCircle, DownloadSimple, FileArrowUp, Gauge, GearSix, Leaf, Sparkle, SquaresFour, X } from "@phosphor-icons/react";
+import { displayTicker, download, hydratePortfolio, importTemplate, metrics, money, normalizeImport, parsePortfolioImport, percent, samplePortfolio, score, totalValue, unitMoney } from "./portfolio";
+import type { ParsedImport, Portfolio } from "./portfolio";
 import { exchangeRate } from "./marketData";
 import Brand from "./Brand";
+import RecommendationsBuilder from "./RecommendationsBuilder";
+import { resolveRecommendation } from "./recommendationBuilder";
+import type { RecommendationPlan } from "./recommendationBuilder";
 import { CompanyInfo, InfoPopover, metricExplanations } from "./InfoPopover";
 import { createPortfolioExport } from "./portfolioExport";
 import type { ExportFormat, ExportKind } from "./portfolioExport";
 
 type View = "overview" | "recommendations" | "settings";
 type State = {
-  calculationVersion:1;
-  portfolio:Portfolio|null;risk:number;green:number;maxInvestment:number;
-  selectedId:string;amount:string;inputMode:"amount"|"units";funding:"new_money"|"rebalance";
-  additional:string;sales:Record<string,string>;result:Portfolio|null;
+  calculationVersion:2; portfolio:Portfolio|null; risk:number; green:number; maxInvestment:number;
+  plan:RecommendationPlan|null;
 };
-const initialState:State={calculationVersion:1,portfolio:null,risk:3,green:4,maxInvestment:100000,selectedId:candidates[0].id,amount:"10",inputMode:"units",funding:"new_money",additional:"0",sales:{},result:null};
+const initialState:State={calculationVersion:2,portfolio:null,risk:3,green:4,maxInvestment:100000,plan:null};
 const storageKey="verdant-analysis-v2";
 const riskColors=["#287b53","#326bbb","#a97808","#be621e","#b13c46"];
 const nav=[["overview",SquaresFour,"Current portfolio"],["recommendations",Sparkle,"Recommendations"],["settings",GearSix,"Settings"]] as const;
@@ -35,6 +36,10 @@ function Dialog({ title, children, onClose }: { title: string; children: ReactNo
 }
 function RiskBadge({ value }: { value: number }) {
   return <span className="risk-badge" style={{ "--risk-color": riskColors[value - 1] } as React.CSSProperties}><i />Risk level {value}</span>;
+}
+
+function HighlightBadge({variant,children}:{variant:"assets"|"green"|"budget";children:ReactNode}) {
+  return <span className={`highlight-badge highlight-${variant}`}>{variant==="green"?<Leaf size={15}/>:<SquaresFour size={14}/>}<span>{children}</span></span>;
 }
 
 function Settings({ risk: savedRisk, green: savedGreen, maxInvestment: savedMax, currency, onSave }: { risk: number; green: number; maxInvestment: number; currency: string; onSave: (risk: number, green: number, maxInvestment: number) => void }) {
@@ -103,15 +108,13 @@ function MetricCards({portfolio}:{portfolio:Portfolio}) {
 function HoldingsTable({portfolio}:{portfolio:Portfolio}) {
   return <section className="workspace-panel"><div className="panel-heading"><div><h2>Current holdings</h2><p>Current market value · {portfolio.baseCurrency} · {portfolio.asOf}</p></div><strong>{money(totalValue(portfolio),portfolio.baseCurrency)}</strong></div><p className="table-scroll-hint">Scroll to see all holding details →</p><div className="table-scroll"><table className="analysis-table"><thead><tr><th>Company / asset</th><th>Unit price</th><th>Units</th><th>Total value</th><th>Weight</th><th>Annual return</th><th>E-score</th></tr></thead><tbody>{portfolio.holdings.map(h=><tr key={h.id}><td><div className="holding-company"><i style={{background:h.color}}>{displayTicker(h.ticker).slice(0,2)}</i><span><CompanyInfo company={h}/><small>{displayTicker(h.ticker)} · {h.assetClass}</small></span></div></td><td>{h.unitPrice==null?"Unavailable":unitMoney(h.unitPrice,portfolio.baseCurrency)}</td><td>{h.units??"Unavailable"}</td><td>{money(h.value,portfolio.baseCurrency)}</td><td>{percent(h.value/totalValue(portfolio),1)}</td><td>{percent(h.expectedReturn)}</td><td>{score(h.eScore)}</td></tr>)}</tbody></table></div></section>;
 }
-function CompanyDetails({company,onSimulate}:{company:Holding|Candidate;onSimulate?:()=>void}) {
-  return <div className="setup-body company-details"><h3>{company.name}</h3><p>{displayTicker(company.ticker)} · {company.exchange}</p><div className="company-key-metrics"><article><span>Expected return</span><strong>{percent(company.expectedReturn)}</strong></article><article><span>E-score</span><strong>{score(company.eScore)}</strong></article></div><p>{greenExplanation(company)}</p><p>Share price: {company.unitPrice==null?"Unavailable":money(company.unitPrice,company.currency)}</p>{onSimulate&&<Button onClick={onSimulate}>Select company <ArrowRight/></Button>}</div>;
-}
 export default function Workbench({entry,onHome}:{entry:"demo"|"resume"|"settings";onHome:()=>void}) {
   const [state,setState]=useState<State>(()=>{
     try {
       const saved=JSON.parse(localStorage.getItem(storageKey)??"null");
       if(saved&&saved.risk>=1&&saved.risk<=5&&saved.green>=1&&saved.green<=5){
-        return {...initialState,...saved,calculationVersion:1,portfolio:saved.portfolio?hydratePortfolio(saved.portfolio):null,result:saved.calculationVersion===1?saved.result:null,
+        return {...initialState,...saved,calculationVersion:2,portfolio:saved.portfolio?hydratePortfolio(saved.portfolio):null,
+          plan:saved.calculationVersion===2&&saved.plan&&Array.isArray(saved.plan.industries)&&Array.isArray(saved.plan.selectedIds)&&Number.isFinite(saved.plan.tolerancePercent)&&saved.plan.tolerancePercent>=-50&&saved.plan.tolerancePercent<=100?saved.plan:null,
           maxInvestment:Number.isFinite(saved.maxInvestment)&&saved.maxInvestment>0?saved.maxInvestment:initialState.maxInvestment};
       }
     }catch{/* Start fresh when storage is unavailable. */}
@@ -120,87 +123,38 @@ export default function Workbench({entry,onHome}:{entry:"demo"|"resume"|"setting
   const [view,setView]=useState<View>(entry==="settings"?"settings":"overview");
   const [uploadOpen,setUploadOpen]=useState(false),[exportOpen,setExportOpen]=useState(false);
   const [exportFormat,setExportFormat]=useState<ExportFormat>("pdf"),[exportBusy,setExportBusy]=useState(false);
-  const [simulationOpen,setSimulationOpen]=useState(false),[detail,setDetail]=useState<Candidate|null>(null);
-  const [error,setError]=useState(""),[query,setQuery]=useState(""),[notice,setNotice]=useState("");
-  const comparisonRef=useRef<HTMLElement>(null);
-  const simulationHeadingRef=useRef<HTMLHeadingElement>(null);
+  const [notice,setNotice]=useState("");
   useEffect(()=>{try{localStorage.setItem(storageKey,JSON.stringify(state));}catch{/* Continue without persistence. */}},[state]);
   useEffect(()=>{if(!notice)return;const id=window.setTimeout(()=>setNotice(""),4000);return()=>window.clearTimeout(id);},[notice]);
   const p=state.portfolio,currency=p?.baseCurrency??"HKD";
-  const recommended=recommendStocks(state.risk,state.green,state.maxInvestment,currency);
-  const selected=recommended.find(c=>c.id===state.selectedId)??recommended[0]??null;
-  const price=selected?sharePrice(selected,currency)!:0;
-  const units=state.inputMode==="units"?Number(state.amount):price>0?Math.floor(Number(state.amount)/price):0;
-  const amount=Math.round(price*units*100)/100;
-  const unitsValid=Number.isSafeInteger(units)&&units>0;
-  useEffect(()=>{if(selected&&selected.id!==state.selectedId)setState(s=>({...s,selectedId:selected.id,result:null}));},[selected?.id,state.selectedId]);
-  useEffect(()=>{if(view==="recommendations"&&simulationOpen)simulationHeadingRef.current?.focus({preventScroll:true});},[view,simulationOpen]);
-  const updateDraft=(fields:Partial<State>)=>{setState(s=>({...s,...fields,result:null}));setError("");};
-  const go=(next:View)=>{setView(next);setError("");window.scrollTo(0,0);};
-  const select=(c:Candidate)=>{
-    const defaultUnits=Math.max(1,Math.min(10,Math.floor(state.maxInvestment/sharePrice(c,currency)!)));
-    updateDraft({selectedId:c.id,inputMode:"units",amount:String(defaultUnits)});
-    setDetail(null);setSimulationOpen(true);go("recommendations");
-  };
+  const recommendation=useMemo(()=>p?resolveRecommendation(p,state.risk,state.green,state.maxInvestment,state.plan):{companies:[],portfolio:null,budget:0},[p,state.risk,state.green,state.maxInvestment,state.plan]);
+  const result=recommendation.portfolio;
+  const go=(next:View)=>{setView(next);window.scrollTo(0,0);};
   const load=(portfolio:Portfolio)=>{
     setState(s=>({...initialState,risk:s.risk,green:s.green,maxInvestment:Math.max(.01,Math.round(s.maxInvestment*exchangeRate(s.portfolio?.baseCurrency??"HKD",portfolio.baseCurrency)*100)/100),portfolio}));
-    setUploadOpen(false);setSimulationOpen(false);go("overview");setNotice("Current portfolio updated.");
+    setUploadOpen(false);go("overview");setNotice("Current portfolio updated.");
   };
-  const runSimulation=()=>{
-    if(!p||!selected)return;
-    try {
-      if(state.inputMode==="amount"&&(!Number.isFinite(Number(state.amount))||Number(state.amount)>state.maxInvestment))throw new Error("Investment budget exceeds your maximum. Update the amount or Settings.");
-      const sales=Object.fromEntries(p.holdings.map(h=>{
-        const value=Number(state.sales[h.id]||0);
-        if(state.funding==="rebalance"&&h.units!=null&&!Number.isSafeInteger(value))throw new Error(`Sell a whole number of shares of ${h.name}.`);
-        return [h.id,String(h.units!=null&&h.unitPrice?value*h.unitPrice:value)];
-      }));
-      const result=simulate(p,selected,units,state.funding,sales,state.funding==="rebalance"?Number(state.additional||0):0,state.maxInvestment);
-      setState(s=>({...s,result}));setError("");setNotice("Portfolio comparison updated.");
-      window.requestAnimationFrame(()=>{comparisonRef.current?.focus({preventScroll:true});if(window.matchMedia("(max-width: 1180px)").matches)comparisonRef.current?.scrollIntoView({behavior:"smooth",block:"start"});});
-    }catch(e){setError((e as Error).message);}
-  };
-  const words=query.toLowerCase().trim().split(/\s+/).filter(Boolean);
-  const filtered=recommended.filter(c=>words.every(word=>`${c.name} ${displayTicker(c.ticker)} ${c.keywords}`.toLowerCase().includes(word)));
   const exportPortfolio=async(kind:ExportKind)=>{
-    if(!p||(!state.result&&kind!=="current")||exportBusy)return;
+    if(!p||(!result&&kind!=="current")||exportBusy)return;
     setExportBusy(true);
     try{
-      const file=await createPortfolioExport(kind,kind==="current"?"pdf":exportFormat,p,kind==="current"?p:state.result!,{riskLevel:state.risk,greenPreference:state.green,maxInvestment:state.maxInvestment});
+      const file=await createPortfolioExport(kind,kind==="current"?"pdf":exportFormat,p,kind==="current"?p:result!,{riskLevel:state.risk,greenPreference:state.green,maxInvestment:state.maxInvestment});
       download(file.name,file.content,file.mimeType);setNotice(kind==="current"?"Current portfolio exported.":kind==="recommended"?"Recommended portfolio exported.":"Portfolio comparison exported.");
     }catch{setNotice("Could not generate the report. Please try again.");}finally{setExportBusy(false);}
   };
-  return <div className="workbench"><aside className="app-sidebar"><Brand onHome={onHome}/><span className="nav-label">ANALYSIS WORKSPACE</span><nav aria-label="Workspace navigation">{nav.map(([id,Icon,label])=><button key={id} aria-label={label} aria-current={view===id?"page":undefined} className={view===id?"active":""} onClick={()=>go(id)} disabled={!p&&id==="recommendations"}><Icon size={20}/>{label}</button>)}</nav><button className="back-landing" onClick={onHome}><Leaf/>Back to website</button></aside>
-    <div className="app-main"><header className="app-topbar"><span className="breadcrumb">Workspace / {nav.find(n=>n[0]===view)?.[2]}</span><span className="workspace-title">Green Street</span></header><main>
-      {view==="overview"&&<div className="workspace-page"><div className="workspace-heading portfolio-heading"><div><span className="workspace-eyebrow">PORTFOLIO ASSESSMENT</span><h1>Current portfolio</h1><p>Manage your holdings and review their financial and environmental performance.</p></div><Button onClick={()=>setUploadOpen(true)}><FileArrowUp size={20}/>Upload portfolio</Button></div>{p?<><MetricCards portfolio={p}/><div className="analysis-meta"><span>{p.holdings.length} assets · {money(totalValue(p),currency)}</span><RiskBadge value={state.risk}/><span>Green preference · Level {state.green}</span></div><HoldingsTable portfolio={p}/><div className="workspace-actions"><Button onClick={()=>{setSimulationOpen(false);go("recommendations");}}>View recommendations <ArrowRight/></Button><Button kind="ghost" disabled={exportBusy} onClick={()=>void exportPortfolio("current")}>Export portfolio</Button><Button kind="ghost" onClick={()=>{setState(s=>({...initialState,risk:s.risk,green:s.green,maxInvestment:Math.max(.01,Math.round(s.maxInvestment*exchangeRate(currency,"HKD")*100)/100)}));setSimulationOpen(false);setNotice("Portfolio removed from this browser.");}}>Clear portfolio</Button></div></>:<section className="workspace-panel empty-workspace"><FileArrowUp size={44}/><h2>Bring your holdings together.</h2><p>Use Upload portfolio above to add a CSV file and start reviewing your investments.</p><div className="empty-file-hint">CSV · Equities, funds and cash · Up to 10 MB</div></section>}</div>}
-      {p&&view==="recommendations"&&<div className="workspace-page">
-        <div className="workspace-heading recommendations-heading"><div><span className="workspace-eyebrow">RECOMMENDATIONS</span><h1>{simulationOpen?"Build your recommended portfolio.":"Explore a potential investment."}</h1><p>Companies selected for your risk tolerance, environmental priority and investment budget.</p></div><div className="recommendation-heading-actions">{simulationOpen&&<Button kind="secondary" onClick={()=>{setSimulationOpen(false);setError("");}}><ArrowLeft/>All recommendations</Button>}<Button onClick={()=>setExportOpen(true)}><DownloadSimple size={18}/>Export portfolio</Button></div></div>
-        <div className="recommendation-summary"><RiskBadge value={state.risk}/><span>Green preference · Level {state.green}</span><span>Maximum investment · {money(state.maxInvestment,currency)}</span><button onClick={()=>go("settings")}>Edit settings</button></div>
-        <section className="company-search-panel" aria-label="Search recommended companies"><label htmlFor="company-keyword">Find a recommended company</label><div className="company-search-row"><div className="company-keyword-input"><MagnifyingGlass size={21}/><input id="company-keyword" aria-label="Search recommendations" placeholder="Search company, ticker or keyword — e.g. solar, water, technology" value={query} onChange={e=>setQuery(e.target.value)}/>{query&&<button aria-label="Clear company search" onClick={()=>setQuery("")}><X size={17}/></button>}</div><span>{filtered.length} {filtered.length===1?"company":"companies"}</span></div></section>
-        {!recommended.length&&<div className="workspace-panel no-recommendations"><h2>No companies match these settings.</h2><p>Adjust your risk tolerance, green preference or investment budget to explore more companies.</p><Button kind="secondary" onClick={()=>go("settings")}>Open settings</Button></div>}
-        {recommended.length>0&&!filtered.length&&<p role="status">No matching recommended companies. Try another keyword.</p>}
-        {simulationOpen&&query&&filtered.length>0&&<div className="company-search-results">{filtered.map(c=><button key={c.id} onClick={()=>select(c)} className={selected?.id===c.id?"selected":""}><span>{c.name}</span><small>{displayTicker(c.ticker)} · E-score {score(c.eScore)}</small></button>)}</div>}
-        {!simulationOpen?<div className="recommendation-grid">{filtered.map(c=><article className="recommendation-card" key={c.id}><div className="rec-company"><i style={{background:c.color}}>{displayTicker(c.ticker)}</i><div><h2>{c.name}</h2><p>{displayTicker(c.ticker)} · {c.exchange}</p></div></div><p className="candidate-fit">Risk level {c.riskLevel} · Share price {money(sharePrice(c,currency)!,currency)}</p><div className="rec-metrics"><span>Expected return<strong>{percent(c.expectedReturn)}</strong></span><span>E-score<strong>{score(c.eScore)}</strong></span></div><Button onClick={()=>select(c)}>Select {displayTicker(c.ticker)} <ArrowRight/></Button><Button kind="ghost" onClick={()=>setDetail(c)}>Company details</Button></article>)}</div>:selected&&<div className="simulator-grid">
-          <section className="workspace-panel simulation-input" aria-labelledby="simulation-heading"><h2 id="simulation-heading" ref={simulationHeadingRef} tabIndex={-1}>Investment simulator</h2>
-            <label className="selection-label">Selected stock<select aria-label="Selected stock" value={selected.id} onChange={e=>{const c=recommended.find(c=>c.id===e.target.value);if(c)select(c);}}>{recommended.map(c=><option key={c.id} value={c.id}>{c.name} · Risk {c.riskLevel} · E-score {score(c.eScore)}</option>)}</select></label>
-            <div className="rec-company"><i style={{background:selected.color}}>{displayTicker(selected.ticker)}</i><div><h2>{selected.name}</h2><p>{displayTicker(selected.ticker)} · {selected.exchange}</p></div></div>
-            <fieldset className="funding-options"><legend>Funding source</legend><label><input type="radio" name="funding" checked={state.funding==="new_money"} onChange={()=>updateDraft({funding:"new_money"})}/>Add new money</label><label><input type="radio" name="funding" checked={state.funding==="rebalance"} onChange={()=>updateDraft({funding:"rebalance"})}/>Rebalance existing holdings</label></fieldset>
-            <div className="input-mode"><button aria-pressed={state.inputMode==="units"} onClick={()=>updateDraft({inputMode:"units",amount:String(Math.max(1,Math.min(10,Math.floor(state.maxInvestment/price))))})}>Units</button><button aria-pressed={state.inputMode==="amount"} onClick={()=>updateDraft({inputMode:"amount",amount:String(Math.min(10000,state.maxInvestment))})}>Amount</button></div>
-            <label className="investment-amount">{state.inputMode==="units"?"Number of shares":`Investment budget (${currency})`}<input aria-label="Investment amount" type="number" min={state.inputMode==="units"?1:price} max={state.inputMode==="units"?Math.floor(state.maxInvestment/price):state.maxInvestment} step={state.inputMode==="units"?1:.01} value={state.amount} onChange={e=>updateDraft({amount:e.target.value})}/></label>
-            <div className="share-calculation"><div><span>Unit price</span><strong>{money(price,currency)}</strong></div><i>×</i><div><span>Whole shares</span><strong>{unitsValid?units:"—"}</strong></div><i>=</i><div><span>Total value</span><strong>{unitsValid?money(amount,currency):"—"}</strong></div></div>
-            {state.inputMode==="amount"&&unitsValid&&<p className="budget-remainder">Unused budget: {money(Math.max(0,Number(state.amount)-amount),currency)}</p>}
-            <p className="investment-limit">Maximum investment: <strong>{money(state.maxInvestment,currency)}</strong><button onClick={()=>go("settings")}>Change</button></p>
-            {state.funding==="rebalance"&&<div className="sale-inputs"><h3>Choose holdings to sell</h3>{p.holdings.map(h=><label key={h.id}><span>{h.name}<small>{h.units!=null?`Available: ${h.units} shares`:`Available: ${money(h.value,currency)}`}</small></span><input aria-label={`Sell ${h.name}`} type="number" min="0" max={h.units??h.value} step={h.units==null ? .01 : 1} value={state.sales[h.id]??""} placeholder="0" onChange={e=>updateDraft({sales:{...state.sales,[h.id]:e.target.value}})}/></label>)}<label><span>Additional money ({currency})</span><input aria-label="Additional money" type="number" min="0" step=".01" value={state.additional} onChange={e=>updateDraft({additional:e.target.value})}/></label><p className="simulation-help">Sales plus additional money must equal the total value above.</p></div>}
-            {error&&<p className="form-error" role="alert">{error}</p>}<Button onClick={runSimulation}>Compare portfolios <ArrowRight/></Button>
-          </section>
-          <section ref={comparisonRef} tabIndex={-1} className="workspace-panel comparison-panel" aria-labelledby="comparison-heading"><div className="panel-heading"><div><span className="comparison-kicker">PORTFOLIO COMPARISON</span><h2 id="comparison-heading">Old portfolio vs. new portfolio</h2><p>Hover or tap a company or metric to explore its meaning.</p></div></div>{state.result?<><Comparison baseline={p} result={state.result}/><Button kind="ghost" onClick={()=>updateDraft({result:null})}>Reset comparison</Button></>:<div className="comparison-empty"><ArrowsLeftRight size={35}/><h3>See how your portfolio could change.</h3><p>Select whole shares and compare your portfolio performance and each company's holdings.</p></div>}</section>
-        </div>}
+  return <div className={view==="recommendations"?"workbench recommendation-workspace":"workbench"}><aside className="app-sidebar"><Brand onHome={onHome}/><span className="nav-label">ANALYSIS WORKSPACE</span><nav aria-label="Workspace navigation">{nav.map(([id,Icon,label])=><button key={id} aria-label={label} aria-current={view===id?"page":undefined} className={view===id?"active":""} onClick={()=>go(id)} disabled={!p&&id==="recommendations"}><Icon size={20}/>{label}</button>)}</nav><button className="back-landing" onClick={onHome}><Leaf/>Back to website</button></aside>
+    <div className="app-main"><main>
+      {view==="overview"&&<div className="workspace-page"><div className="workspace-heading portfolio-heading"><div><span className="workspace-eyebrow">PORTFOLIO ASSESSMENT</span><h1>Current portfolio</h1><p>Manage your holdings and review their financial and environmental performance.</p></div><Button onClick={()=>setUploadOpen(true)}><FileArrowUp size={20}/>Upload portfolio</Button></div>{p?<><MetricCards portfolio={p}/><div className="analysis-meta"><HighlightBadge variant="assets">{p.holdings.length} assets · {money(totalValue(p),currency)}</HighlightBadge><RiskBadge value={state.risk}/><HighlightBadge variant="green">Green preference · Level {state.green}</HighlightBadge></div><HoldingsTable portfolio={p}/><div className="workspace-actions"><Button onClick={()=>go("recommendations")}>View recommendations <ArrowRight/></Button><Button kind="ghost" disabled={exportBusy} onClick={()=>void exportPortfolio("current")}>Export portfolio</Button><Button kind="ghost" onClick={()=>{setState(s=>({...initialState,risk:s.risk,green:s.green,maxInvestment:Math.max(.01,Math.round(s.maxInvestment*exchangeRate(currency,"HKD")*100)/100)}));setNotice("Portfolio removed from this browser.");}}>Clear portfolio</Button></div></>:<section className="workspace-panel empty-workspace"><FileArrowUp size={44}/><h2>Bring your holdings together.</h2><p>Use Upload portfolio above to add a CSV file and start reviewing your investments.</p><div className="empty-file-hint">CSV · Equities, funds and cash · Up to 10 MB</div></section>}</div>}
+      {p&&view==="recommendations"&&<div className="workspace-page recommendations-page">
+        <div className="workspace-heading recommendations-heading"><div><span className="workspace-eyebrow">RECOMMENDATIONS</span><h1>Build your recommended portfolio.</h1><p>Choose your industries. Select your companies. See your portfolio take shape.</p></div><div className="recommendation-heading-actions"><Button onClick={()=>setExportOpen(true)}><DownloadSimple size={18}/>Export portfolio</Button></div></div>
+        <div className="recommendation-summary"><RiskBadge value={state.risk}/><HighlightBadge variant="green">Green preference · Level {state.green}</HighlightBadge><HighlightBadge variant="budget">Maximum investment · {money(state.maxInvestment,currency)}</HighlightBadge><button onClick={()=>go("settings")}>Edit settings</button></div>
+        <RecommendationsBuilder baseline={p} risk={state.risk} green={state.green} maximum={state.maxInvestment} plan={state.plan} companies={recommendation.companies} portfolio={result} budget={recommendation.budget} onPlanChange={plan=>setState(s=>({...s,plan}))}/>
+        {result&&<details className="workspace-panel builder-comparison"><summary><ArrowsLeftRight size={20}/><strong>Compare with your current portfolio</strong><span>Old vs. new holdings & performance</span></summary><Comparison baseline={p} result={result}/></details>}
       </div>}
-      {view==="settings"&&<Settings risk={state.risk} green={state.green} maxInvestment={state.maxInvestment} currency={currency} onSave={(risk,green,maxInvestment)=>{setState(s=>({...s,risk,green,maxInvestment,result:null}));setNotice("Settings saved.");}}/>}
+      {view==="settings"&&<Settings risk={state.risk} green={state.green} maxInvestment={state.maxInvestment} currency={currency} onSave={(risk,green,maxInvestment)=>{setState(s=>({...s,risk,green,maxInvestment,plan:null}));setNotice("Settings saved.");}}/>}
     </main></div>
     {uploadOpen&&<Dialog title="Upload portfolio" onClose={()=>setUploadOpen(false)}><ImportFlow onImport={load}/></Dialog>}
-    {exportOpen&&<Dialog title="Export portfolio" onClose={()=>setExportOpen(false)}><div className="export-body"><p>Download a formatted portfolio report with share prices, whole units and total values.</p><label className="export-format">File format<select aria-label="Export format" value={exportFormat} onChange={e=>setExportFormat(e.target.value as ExportFormat)}><option value="pdf">PDF · Portfolio report</option><option value="json">JSON · Structured data</option></select></label>{!state.result&&<p className="export-empty">Compare portfolios first to generate your recommended holdings and report.</p>}<div className="export-options"><section><span className="export-icon"><SquaresFour size={24}/></span><h3>Recommended portfolio</h3><p>Share prices, units, totals, environmental scores and explanations.</p><Button disabled={!state.result||exportBusy} onClick={()=>void exportPortfolio("recommended")}><DownloadSimple size={18}/>{exportBusy?"Preparing report…":"Export recommended portfolio"}</Button></section><section><span className="export-icon"><ArrowsLeftRight size={24}/></span><h3>Portfolio comparison</h3><p>Old and new holdings, share quantities and performance changes.</p><Button disabled={!state.result||exportBusy} onClick={()=>void exportPortfolio("comparison")}><DownloadSimple size={18}/>{exportBusy?"Preparing report…":"Export portfolio comparison"}</Button></section></div></div></Dialog>}
-    {detail&&<Dialog title="Company details" onClose={()=>setDetail(null)}><CompanyDetails company={detail} onSimulate={()=>select(detail)}/></Dialog>}
+    {exportOpen&&<Dialog title="Export portfolio" onClose={()=>setExportOpen(false)}><div className="export-body"><p>Download a formatted portfolio report with share prices, whole units and total values.</p><label className="export-format">File format<select aria-label="Export format" value={exportFormat} onChange={e=>setExportFormat(e.target.value as ExportFormat)}><option value="pdf">PDF · Portfolio report</option><option value="json">JSON · Structured data</option></select></label>{!result&&<p className="export-empty">Generate recommendations and select at least one company to export your portfolio.</p>}<div className="export-options"><section><span className="export-icon"><SquaresFour size={24}/></span><h3>Recommended portfolio</h3><p>Share prices, units, totals, environmental scores and explanations.</p><Button disabled={!result||exportBusy} onClick={()=>void exportPortfolio("recommended")}><DownloadSimple size={18}/>{exportBusy?"Preparing report…":"Export recommended portfolio"}</Button></section><section><span className="export-icon"><ArrowsLeftRight size={24}/></span><h3>Portfolio comparison</h3><p>Old and new holdings, share quantities and performance changes.</p><Button disabled={!result||exportBusy} onClick={()=>void exportPortfolio("comparison")}><DownloadSimple size={18}/>{exportBusy?"Preparing report…":"Export portfolio comparison"}</Button></section></div></div></Dialog>}
     {notice&&<div className="toast" role="status"><CheckCircle size={18}/>{notice}</div>}
   </div>;
 }

@@ -4,10 +4,10 @@ import { companyQuote, exchangeRate, marketCompanies } from "./marketData";
 export type Holding = {
   id: string; ticker: string; name: string; exchange: string; assetClass: string;
   currency: string; value: number; expectedReturn: number | null; eScore: number | null; color: string;
-  unitPrice?: number | null; units?: number | null; greenExplanation?: string;
+  unitPrice?: number | null; units?: number | null; greenExplanation?: string; industryId?: string; peRatio?: number | null;
 };
 export type Portfolio = { name: string; baseCurrency: string; asOf: string; isDemo: boolean; holdings: Holding[] };
-export type Candidate = Omit<Holding, "value"> & { unitPrice: number; riskLevel: number; keywords: string; greenExplanation: string };
+export type Candidate = Omit<Holding, "value"> & { unitPrice: number; riskLevel: number; keywords: string; greenExplanation: string; industryId: string; peRatio: number };
 export type ParsedImport = { holdings: Holding[]; asOf: string; sourceCurrency: string | null };
 const colors = ["#5487bb", "#65a593", "#8d9dca", "#bb8f45", "#8b99a6"];
 const roundMoney = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
@@ -29,7 +29,7 @@ export function samplePortfolio(): Portfolio {
     }) };
 }
 export const candidates: Candidate[] = marketCompanies.map(c => ({ id:c.id,ticker:c.ticker,name:c.name,exchange:c.exchange,currency:c.currency,
-  assetClass:"Equity",unitPrice:c.price,riskLevel:c.riskLevel,eScore:c.eScore,expectedReturn:c.expectedReturn,color:c.color,keywords:c.keywords,greenExplanation:c.greenExplanation }));
+  assetClass:"Equity",unitPrice:c.price,riskLevel:c.riskLevel,eScore:c.eScore,expectedReturn:c.expectedReturn,color:c.color,keywords:c.keywords,greenExplanation:c.greenExplanation,industryId:c.industryId,peRatio:c.peRatio }));
 export function recommendStocks(risk: number, green: number, maxInvestment: number, currency: string) {
   return candidates.filter(c => {
     const price=sharePrice(c,currency);

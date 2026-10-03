@@ -1,0 +1,150 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { pathToFileURL } from "node:url";
+import { resolve } from "node:path";
+import { build } from "esbuild";
+import { JSDOM } from "jsdom";
+
+const testOutput=resolve("output",`builder-tests-${process.pid}`);
+await build({entryPoints:["src/Workbench.tsx","src/portfolio.ts","src/recommendationBuilder.ts","src/portfolioExport.ts"],outdir:testOutput,bundle:true,platform:"node",format:"esm",jsx:"automatic",external:["react","react-dom","react-dom/client","jspdf","jspdf-autotable"],logLevel:"silent"});
+const dom=new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>',{url:"http://localhost/app",pretendToBeVisual:true});
+for(const key of ["window","document","HTMLElement","HTMLInputElement","HTMLDialogElement","Event","MouseEvent","KeyboardEvent","localStorage"]){globalThis[key]=dom.window[key];}
+Object.defineProperty(globalThis,"navigator",{value:dom.window.navigator,configurable:true});
+globalThis.IS_REACT_ACT_ENVIRONMENT=true;
+window.scrollTo=()=>{};
+HTMLDialogElement.prototype.showModal=function(){this.setAttribute("open","");};
+HTMLDialogElement.prototype.close=function(){this.removeAttribute("open");};
+const {act,createElement}=await import("react");
+const {createRoot}=await import("react-dom/client");
+const {default:Workbench}=await import(pathToFileURL(resolve(testOutput,"Workbench.js")));
+const f=await import(pathToFileURL(resolve(testOutput,"portfolio.js")));
+const builder=await import(pathToFileURL(resolve(testOutput,"recommendationBuilder.js")));
+const {createPortfolioExport}=await import(pathToFileURL(resolve(testOutput,"portfolioExport.js")));
+const q=selector=>document.querySelector(selector);
+const qa=selector=>[...document.querySelectorAll(selector)];
+async function click(selector){const target=q(selector);assert.ok(target,selector);await act(async()=>target.click());}
+async function fill(selector,value){await act(async()=>{const input=q(selector);Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,"value").set.call(input,value);input.dispatchEvent(new Event("input",{bubbles:true}));input.dispatchEvent(new Event("change",{bubbles:true}));});}
+const state=()=>JSON.parse(localStorage.getItem("verdant-analysis-v2"));
+const currentRecommendation=()=>builder.resolveRecommendation(state().portfolio,state().risk,state().green,state().maxInvestment,state().plan);
+
+test("three-panel generation, selection, search, persistence and exports",async()=>{
+  localStorage.clear();let root=createRoot(q("#root"));
+  await act(async()=>root.render(createElement(Workbench,{entry:"demo",onHome(){}})));
+  const baseline=structuredClone(state().portfolio);
+  assert.equal(q(".app-topbar"),null,"Workspace breadcrumb bar is removed");
+  assert.ok(q(".analysis-meta .highlight-assets"));assert.ok(q(".analysis-meta .highlight-green"));
+  await click('button[aria-label="Recommendations"]');
+  assert.equal(qa(".recommendation-builder>section").length,3);
+  assert.ok(q(".recommendation-summary .highlight-budget"));
+  assert.equal(q(".recommendation-summary .highlight-green").firstElementChild.tagName.toLowerCase(),"svg","Preference icon precedes text");
+  assert.equal(q(".recommendation-summary .highlight-budget").firstElementChild.tagName.toLowerCase(),"svg","Budget icon precedes text");
+  assert.equal(q(".live-portfolio-value"),null);
+  assert.equal(q('button[aria-label="Choose industries"]').getAttribute("aria-expanded"),"false");
+  assert.equal(q("#industry-dropdown-options"),null,"Industry options start collapsed");
+  await click('button[aria-label="Choose industries"]');
+  assert.equal(q('button[aria-label="Choose industries"]').getAttribute("aria-expanded"),"true");
+  await act(async()=>q('input[aria-label="All industries"]').dispatchEvent(new KeyboardEvent("keydown",{key:"Escape",bubbles:true})));
+  assert.equal(q("#industry-dropdown-options"),null,"Escape closes the dropdown");
+  assert.equal(document.activeElement,q('button[aria-label="Choose industries"]'));
+  await click('button[aria-label="Choose industries"]');
+  await act(async()=>q(".builder-budget").dispatchEvent(new MouseEvent("mousedown",{bubbles:true})));
+  assert.equal(q("#industry-dropdown-options"),null,"Outside click closes the dropdown");
+  await click('button[aria-label="Choose industries"]');
+  await click('input[aria-label="All industries"]');
+  await click('input[aria-label="Renewable energy"]');
+  await click('input[aria-label="Technology"]');
+  await click(".generate-recommendations");
+  assert.equal(q("#industry-dropdown-options"),null,"Generation closes the dropdown");
+  assert.match(q(".industry-dropdown-trigger").textContent,/Renewable energy \+1/);
+  const checks=qa('.builder-company-table input[type="checkbox"]');
+  assert.equal(checks.length,3);assert.ok(checks.every(input=>input.checked));
+  assert.equal(qa(".selected-holdings-table tbody tr").length,3);
+  const initial=currentRecommendation();
+  assert.ok(initial.portfolio.holdings.every(h=>Number.isSafeInteger(h.units)&&h.units>=1));
+  assert.ok(f.totalValue(initial.portfolio)<=initial.budget);
+  assert.deepEqual(state().portfolio,baseline,"Current portfolio is not overwritten by recommendations");
+  const beforeUnits=initial.portfolio.holdings.find(h=>h.ticker==="AR").units;
+  await click('input[aria-label="Include Verdant Solar"]');
+  const changed=currentRecommendation();
+  assert.equal(changed.portfolio.holdings.length,2);
+  assert.ok(changed.portfolio.holdings.every(h=>h.ticker!=="VS"));
+  assert.ok(changed.portfolio.holdings.find(h=>h.ticker==="AR").units>beforeUnits);
+  assert.equal(q('input[aria-label="Select all recommended companies"]').indeterminate,true);
+  assert.notEqual(f.metrics(initial.portfolio).greenScore.value,f.metrics(changed.portfolio).greenScore.value);
+  assert.equal(qa('.allocation-ring circle').length,3,"Industry chart follows selected sectors");
+  await fill('input[aria-label="Search recommendations"]',"solar");
+  assert.equal(qa(".builder-company-table tbody tr").length,2);
+  assert.equal(qa(".selected-holdings-table tbody tr").length,2,"Search does not alter selection");
+  await fill('input[aria-label="Search recommendations"]',"Nova");
+  assert.equal(qa(".builder-company-table tbody tr").length,0,"Search never includes an ineligible company");
+  await fill('input[aria-label="Search recommendations"]',"");
+  await click('input[aria-label="Include Verdant Solar"]');
+  assert.equal(qa(".selected-holdings-table tbody tr").length,3);
+  await click('button[aria-label="Choose industries"]');
+  assert.equal(q('input[aria-label="All industries"]').indeterminate,true);
+  await click('input[aria-label="Utilities"]');
+  assert.ok(q(".builder-draft-note"));
+  assert.equal(qa(".builder-company-table tbody tr").length,3,"Industry drafts do not apply before confirmation");
+  await click(".generate-recommendations");
+  assert.equal(qa(".builder-company-table tbody tr").length,4);assert.equal(q(".builder-draft-note"),null);
+  assert.ok(qa('.builder-company-table input[type="checkbox"]').every(input=>input.checked));
+  await act(async()=>q('.builder-company-table tbody .info-trigger').focus());
+  assert.match(q('[role="tooltip"]').textContent,/Environmental score/);
+  await act(async()=>document.activeElement.blur());
+  await click('input[aria-label="Select all recommended companies"]');
+  assert.equal(q(".live-portfolio-value"),null);assert.equal(currentRecommendation().portfolio,null);
+  await click('.recommendation-heading-actions button');
+  assert.equal(qa(".export-options button:disabled").length,2,"Empty selection cannot export stale holdings");
+  await click('button[aria-label="Close dialog"]');
+  await click('input[aria-label="Select all recommended companies"]');
+  const saved=state().plan;
+  await act(async()=>root.unmount());root=createRoot(q("#root"));
+  await act(async()=>root.render(createElement(Workbench,{entry:"resume",onHome(){}})));
+  await click('button[aria-label="Recommendations"]');
+  assert.deepEqual(state().plan,saved);assert.equal(qa(".selected-holdings-table tbody tr").length,4);
+  await click(".builder-comparison summary");
+  assert.equal(q(".builder-comparison").open,true);
+  const live=currentRecommendation();
+  const json=await createPortfolioExport("recommended","json",baseline,live.portfolio,{riskLevel:3,greenPreference:4,maxInvestment:100000});
+  const payload=JSON.parse(json.content);
+  assert.equal(payload.recommendedPortfolio.holdings.length,4);
+  for(const holding of payload.recommendedPortfolio.holdings)assert.ok(Math.abs(holding.unitPrice*holding.units-holding.totalPrice)<.001);
+  const pdf=await createPortfolioExport("comparison","pdf",baseline,live.portfolio,{riskLevel:3,greenPreference:4,maxInvestment:100000});
+  assert.equal(Buffer.from(pdf.content).subarray(0,5).toString(),"%PDF-");
+  assert.deepEqual(state().portfolio,baseline);
+  await click('button[aria-label="Settings"]');
+  assert.equal(q(".app-topbar"),null,"Settings has no top breadcrumb bar");
+  await act(async()=>q(".settings-form").requestSubmit());
+  await click('button[aria-label="Recommendations"]');
+  assert.equal(state().plan,null);assert.equal(q(".live-portfolio-value"),null,"Changed settings invalidate the old draft");
+  await click('button[aria-label="Choose industries"]');
+  await click('input[aria-label="All industries"]');
+  await click(".generate-recommendations");
+  assert.match(q('[role="alert"]').textContent,/at least one industry/);
+  await act(async()=>root.unmount());
+});
+
+test("allocation stays within budget, handles low budgets and matches company identities",()=>{
+  const p=f.samplePortfolio(),focus=builder.industries.map(i=>i.id);
+  for(const risk of [1,3,5])for(const green of [1,4,5])for(const maximum of [10,40,100,350,100000]){
+    const companies=builder.industryRecommendations(p,risk,green,maximum,focus,10);
+    assert.ok(companies.every(c=>c.riskLevel<=risk));
+    const budget=builder.recommendationBudget(p,10,maximum);
+    for(const subset of [companies,companies.slice(0,1),companies.slice(1)]){
+      const result=builder.allocateRecommendedPortfolio(p,subset,budget);
+      if(!subset.length){assert.equal(result,null);continue;}
+      assert.ok(result);assert.equal(result.holdings.length,subset.length);
+      assert.ok(f.totalValue(result)<=budget+.000001);
+      result.holdings.forEach(h=>assert.ok(Number.isSafeInteger(h.units)&&h.units>0&&Math.abs(h.value-h.unitPrice*h.units)<.0001));
+    }
+  }
+  assert.equal(builder.allocateRecommendedPortfolio(p,[],1000),null);
+  assert.equal(builder.allocateRecommendedPortfolio(p,[f.candidates[0]],1),null);
+  const ar=f.candidates.find(c=>c.ticker==="AR");
+  const result=builder.allocateRecommendedPortfolio(p,[ar],1000);
+  assert.equal(result.holdings[0].id,p.holdings.find(h=>f.displayTicker(h.ticker)==="AR").id);
+  assert.equal(result.holdings[0].units,10);
+  assert.equal(builder.recommendationBudget(p,-50,100000),47000);
+});
+
+test.after(()=>dom.window.close());
