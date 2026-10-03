@@ -73,6 +73,10 @@ export function score(value: number | null) {
   return value === null ? "Unavailable" : value.toFixed(2);
 }
 
+export function displayTicker(ticker: string) {
+  return ticker.replace(/^DEMO-/i, "");
+}
+
 // Parse quoted broker exports, including commas/newlines inside a quoted cell.
 export function parseCSV(text: string): string[][] {
   const cleaned = text.replace(/^\uFEFF/, "");
@@ -149,8 +153,9 @@ export function normalizeImport(parsed: ParsedImport, baseCurrency: string, rate
   return p;
 }
 
-export function simulate(p: Portfolio, stock: Candidate, amount: number, funding: "new_money" | "rebalance", sales: Record<string, string>, additional: number): Portfolio {
+export function simulate(p: Portfolio, stock: Candidate, amount: number, funding: "new_money" | "rebalance", sales: Record<string, string>, additional: number, maxInvestment = Infinity): Portfolio {
   if (!Number.isFinite(amount) || amount <= 0) throw new Error("Enter a positive investment amount.");
+  if (amount > maxInvestment) throw new Error(`Investment amount exceeds your maximum of ${money(maxInvestment, p.baseCurrency)}. Reduce the amount or update Settings.`);
   if (!Number.isFinite(additional) || additional < 0) throw new Error("Additional money must be zero or positive.");
   let released = 0;
   const holdings = p.holdings.map(h => {
@@ -159,7 +164,7 @@ export function simulate(p: Portfolio, stock: Candidate, amount: number, funding
     released += sold;
     return { ...h, value: Math.round((h.value - sold) * 100) / 100 };
   }).filter(h => h.value > 0);
-  if (funding === "rebalance" && Math.abs(released + additional - amount) > .005) throw new Error("Sales plus additional money must equal the investment amount. This demo does not automatically choose holdings to sell.");
+  if (funding === "rebalance" && Math.abs(released + additional - amount) > .005) throw new Error("Sales plus additional money must equal the investment amount.");
   const existing = holdings.find(h => h.id === stock.id);
   if (existing) existing.value += amount;
   else holdings.push({ ...stock, currency: p.baseCurrency, value: amount, expectedReturn: p.isDemo ? stock.expectedReturn : null, eScore: p.isDemo ? stock.eScore : null });

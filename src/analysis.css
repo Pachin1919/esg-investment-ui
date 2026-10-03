@@ -108,3 +108,124 @@
 @media(max-width:540px){.app-topbar{height:auto;min-height:58px;padding:12px 16px}.topbar-actions{gap:8px;flex-wrap:wrap}.portfolio-status{max-width:none;white-space:normal}.five-options{gap:5px}.five-options button{font-size:13px;padding:9px 1px}.risk-options button>svg{display:none}.flow-dialog{width:100%;height:100dvh;max-height:100dvh;border-radius:0}.flow-dialog .setup-modal{max-height:100dvh;min-height:100dvh;border-radius:0}.flow-dialog .setup-top h2{font-size:18px}.import-review{padding:14px}.import-format{display:block}.import-format button{margin-top:10px}.workspace-metric{padding:20px}.rec-metrics strong{font-size:21px}.company-key-metrics{grid-template-columns:1fr}.simulation-input{padding:20px}.scale-endpoints{font-size:13px}.hero-visual{width:100%;min-width:0}.mini-workbench{min-height:0}.mini-metrics{grid-template-columns:1fr 1fr}.mini-metrics>div:last-child{display:none}.mini-sidebar{display:none}.mini-content{padding:18px}.mini-body{display:block}.floating-note{position:static;margin-top:14px;width:100%}.landing-hero{padding-bottom:45px}.value-card{padding:24px}.section-heading h2,.process-intro h2,.trust-copy h2{font-size:30px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
 @media(max-width:780px){.table-scroll-hint{display:block;font-size:14px;color:#526980;margin:12px 18px}}
+
+/* Green Street identity */
+.brand{flex:none;display:inline-flex;align-items:center;gap:8px;padding:0;border:0;background:transparent;color:#123f35;text-align:left}
+.brand-mark{width:44px;height:52px;display:block;flex:none;overflow:visible}
+.brand-wordmark{display:flex;flex-direction:column;font:750 27px/.75 "Manrope Variable",sans-serif;letter-spacing:-1.4px}
+.brand-wordmark span:first-child{color:#3d7f43}
+.brand-wordmark span:last-child{color:#123f35}
+.brand-light .brand-wordmark span:first-child{color:#83bd78}
+.brand-light .brand-wordmark span:last-child{color:#f0f8f3}
+.brand-light .brand-mark{filter:drop-shadow(0 1px 0 #ffffff1f)}
+.app-sidebar .brand{padding:0 9px;color:#123f35}
+.app-sidebar .brand-mark{width:48px;height:57px}
+.app-sidebar .brand-wordmark{font-size:28px}
+.landing-footer .brand{margin-right:3px}
+
+/* Portfolio, recommendations and settings */
+.workspace-title{display:none}
+.portfolio-heading .button.primary{min-height:48px;padding:0 24px;font-size:15px;box-shadow:0 8px 22px #315f9d26}
+.portfolio-heading{align-items:center;margin-bottom:30px}
+.empty-workspace{padding:70px 24px;color:#315f9d}
+.empty-workspace h2{color:#213956;font:650 25px/1.3 "Manrope Variable",sans-serif;margin:22px 0 12px}
+.empty-workspace p{max-width:480px;margin:0 auto 20px;line-height:1.7}
+.empty-file-hint{font-size:13px;color:#6c8094}
+.sidebar-settings{margin-top:auto;padding:16px 14px;border:1px solid #d8e4ee;border-radius:10px;background:#edf2f8;color:#435670;text-align:left;display:flex;flex-direction:column;gap:9px}
+.sidebar-settings:hover,.sidebar-settings.active{background:#e4eefb;border-color:#a6bfdc}
+.settings-link-title{display:flex;align-items:center;gap:9px;font-weight:700;font-size:15px;color:#315f9d}
+.settings-link-title>svg:last-child{margin-left:auto}
+.settings-link-summary,.settings-link-budget{font-size:13px;color:#5b7188;line-height:1.5}
+.recommendation-summary{margin-bottom:22px;align-items:center}
+.recommendation-summary .risk-badge{font-size:14px}
+.recommendation-card .rec-company{margin:4px 0 24px}
+.recommendation-card .rec-metrics{margin-bottom:18px}
+.simulation-input>h2{font-size:20px;color:#233e59;margin:0 0 22px}
+.simulation-input>h2:focus,.comparison-panel:focus{outline:none}
+.simulation-input>h2:focus-visible,.comparison-panel:focus-visible{outline:3px solid #417bb7;outline-offset:4px}
+.simulation-input>.button{width:100%;min-height:46px}
+.simulation-input{align-self:start}
+.investment-limit{font-size:13px;line-height:1.6;color:#576f86;display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;margin:12px 0 20px}
+.investment-limit button{margin-left:auto;border:0;background:none;color:#315f9d;font-weight:650;padding:0}
+.comparison-kicker{display:block;font-size:11px;letter-spacing:1.2px;font-weight:700;color:#6f89aa;margin-bottom:9px}
+.comparison-panel .panel-heading{padding:24px}
+.comparison-panel .panel-heading h2{font-size:20px}
+.comparison-panel .comparison-table{min-width:510px}
+.settings-form{width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px}
+.settings-form fieldset{min-width:0;border:1px solid #dfe5ec;padding:28px;margin:0;border-radius:12px;background:#fff}
+.settings-form legend{float:left;width:100%;font-size:18px;font-weight:700;color:#29425e;margin-bottom:8px}
+.settings-form fieldset>p{clear:both}
+.settings-form .preference-setting>.five-options{margin-top:24px}
+.settings-form fieldset>p{font-size:14px;color:#566b81;margin:8px 0 16px}
+.settings-form .five-options button{border:1px solid #dbe4de;border-radius:8px;font:inherit;font-size:14px;min-height:86px;padding:10px 4px;white-space:nowrap;min-width:0}
+.settings-form .five-options button span{margin-bottom:10px}
+.settings-form .risk-options button{border-top:4px solid var(--risk-color)}
+.settings-form .risk-options button.selected{border-color:var(--risk-color)}
+.settings-form .green-options button{background:#fff;color:#5d7768}
+.settings-form .green-options button.selected{background:#edf6f0;border-color:#4e9272;box-shadow:0 0 0 1px #4e9272;color:#2c6d54;font-weight:700}
+.settings-form .green-options button span{color:#5c9278;background:transparent}
+.settings-form .green-options button.selected span{color:#2f7b59;background:transparent}
+.budget-setting{grid-column:1/-1}
+.budget-setting-content{clear:both;display:grid;grid-template-columns:1fr minmax(260px,.8fr);gap:40px;align-items:center}
+.budget-setting-content>div>p{font-size:14px;line-height:1.7;color:#566b81;margin:8px 0}
+.budget-label{display:block;font-size:14px;color:#415d79;width:100%}
+.budget-input{display:flex;align-items:center;gap:12px;padding:0 16px;margin-top:10px;background:#f8fafc;border:1px solid #b8cadd;border-radius:8px}
+.budget-input>span{font-weight:650;color:#6d8297}
+.budget-input input{border:0;background:transparent;padding:14px 0;width:100%;min-width:0;font-size:22px;color:#233e59}
+.settings-form .budget-help{font-size:13px}
+.settings-form>.form-error{grid-column:1/-1;margin:0}
+.settings-actions{grid-column:1/-1;display:flex;justify-content:flex-end;padding:0}
+.settings-actions .button{min-width:185px;background:#315f9d}
+.recommendations-heading>div:first-child{min-width:0}
+.recommendation-heading-actions{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex-wrap:wrap;flex:none}
+.recommendation-heading-actions .workspace-search{min-width:200px;max-width:245px}
+.recommendation-heading-actions .button.primary{min-height:44px;padding:0 18px}
+.export-body{padding:28px}
+.export-body>p{margin:0 0 24px;color:#5c7188;line-height:1.7;font-size:15px}
+.export-format{display:flex;align-items:center;gap:16px;font-size:14px;font-weight:650;color:#29425e;margin-bottom:24px}
+.export-format select{font:inherit;font-weight:400;padding:10px 12px;border:1px solid #c5d3e2;border-radius:7px;background:#f8fafc;color:#29425e}
+.export-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.export-options section{display:flex;flex-direction:column;padding:24px;border:1px solid #dce5ed;border-radius:11px;background:#fff}
+.export-icon{display:grid;place-items:center;width:44px;height:44px;background:#eaf1fb;color:#315f9d;border-radius:10px;margin-bottom:20px}
+.export-options h3{font-size:18px;color:#29425e;margin:0 0 10px}
+.export-options p{font-size:14px;color:#5c7188;line-height:1.7;margin:0 0 22px}
+.export-options .button{margin-top:auto;background:#315f9d;color:#fff;font-size:13px;padding:10px 12px}
+.export-body .export-empty{padding:12px 16px;border-radius:8px;background:#eef3f8;font-size:14px;color:#526981;margin-bottom:24px}
+
+@media(max-width:1180px){
+  .settings-form{grid-template-columns:minmax(0,1fr)}
+  .recommendations-heading{flex-wrap:wrap}
+  .recommendation-heading-actions{width:100%;justify-content:space-between}
+}
+
+@media(max-width:780px){
+  .app-sidebar .brand{padding:0}
+  .app-sidebar .brand-mark{width:36px;height:43px}
+  .app-sidebar .brand-wordmark{display:none}
+  .app-sidebar nav{margin-left:auto}
+  .sidebar-settings{margin:0 0 0 9px;width:43px;height:43px;padding:10px;border:0;background:transparent;border-radius:8px}
+  .sidebar-settings .settings-link-title{font-size:0;gap:0;line-height:1}
+  .sidebar-settings .settings-link-title>svg:first-child{width:23px;height:23px;flex:none}
+  .sidebar-settings .settings-link-title>svg:last-child,.settings-link-summary,.settings-link-budget{display:none}
+  .workspace-title{display:block;color:#5c7188;font-size:14px}
+  .portfolio-heading{gap:20px}
+  .portfolio-heading .button.primary{width:100%;min-height:48px}
+  .settings-form{gap:18px}
+  .settings-form fieldset{padding:24px 20px}
+  .budget-setting-content{grid-template-columns:1fr;gap:16px}
+  .recommendation-heading-actions{align-items:stretch;gap:12px}
+  .recommendation-heading-actions .workspace-search{max-width:none;width:100%}
+  .recommendation-heading-actions .button{width:100%}
+  .export-options{grid-template-columns:1fr}
+  .export-body{padding:24px 20px}
+  .settings-actions .button{width:100%}
+  .comparison-panel .panel-heading{padding:20px}
+  .recommendation-summary{gap:12px}
+}
+
+@media(max-width:540px){
+  .landing-nav .brand{gap:5px}
+  .landing-nav .brand-mark{width:34px;height:41px}
+  .landing-nav .brand-wordmark{font-size:22px;letter-spacing:-1px}
+  .settings-form .five-options button{font-size:12px;padding:9px 1px}
+}
