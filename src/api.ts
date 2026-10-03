@@ -151,6 +151,7 @@ export type Recommendation = {
   params: { vol_target_ann: number | null; g_target_pctl: number | null; n_candidates: number };
   total_capital: number;
   new_capital: number;
+  target_capital: number;
   turnover: number;
   before: PortfolioStats;
   after: PortfolioStats;
@@ -163,7 +164,7 @@ export async function recommendPortfolio(body: {
   risk_score: number;
   green_score: number;
   max_new_capital: number;
-  market: "hk" | "tw";
+  market: "hk" | "tw" | "all";
   filters?: { include_industries: string[] };
 }): Promise<Recommendation | { error: string }> {
   try {
@@ -184,7 +185,7 @@ export async function recommendPortfolio(body: {
 
 export type SectorOption = { sector: string; n: number; industries: { industry: string; n: number }[] };
 
-export async function fetchFilterOptions(market: "hk" | "tw"): Promise<SectorOption[]> {
+export async function fetchFilterOptions(market: "hk" | "tw" | "all"): Promise<SectorOption[]> {
   try {
     const res = await fetch(`/api/portfolio/filters?market=${market}`);
     if (!res.ok) return [];
