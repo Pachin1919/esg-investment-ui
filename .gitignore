@@ -151,3 +151,16 @@ vite.config.ts.timestamp-*
 # Local demo browser artifacts
 output/
 .playwright-cli/
+
+# Python & analysis engine artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.parquet
+*.duckdb
+.pytest_cache/
+.ruff_cache/
+.venv/
+data/raw/
+data/processed/
+outputs/

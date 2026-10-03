@@ -2718,3 +2718,96 @@ tbody tr:hover {
 @media (max-width: 760px) {
   .page-heading .brand-slogan, .green-hero .brand-slogan { font-size: 14px; }
 }
+
+/* ESG Impact Scorecard in Rebalance Comparison */
+.esg-scorecard {
+  margin-top: 18px;
+  padding: 16px 18px;
+  background: var(--surface-subtle, #f5f8fa);
+  border-radius: var(--radius-md, 12px);
+  border: 1px solid var(--line, #e2e8f0);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.esg-scorecard-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.esg-scorecard-head h4 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text, #1a202c);
+}
+.esg-scorecard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+}
+.esg-scorecard-card {
+  background: var(--surface, #ffffff);
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line, #e2e8f0);
+}
+.esg-scorecard-card span {
+  display: block;
+  font-size: 11px;
+  color: var(--muted, #64748b);
+  margin-bottom: 4px;
+}
+.esg-scorecard-card strong {
+  font-size: 16px;
+  color: var(--text, #1a202c);
+}
+.esg-scorecard-card small {
+  display: block;
+  font-size: 11px;
+  margin-top: 2px;
+}
+.esg-scorecard-card small.positive {
+  color: #10b981;
+}
+.esg-scorecard-card small.neutral {
+  color: var(--muted, #64748b);
+}
+.rebalance-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+/* Upload Modal Styles */
+.upload-modal-body {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.upload-dropzone {
+  border: 2px dashed var(--line, #cbd5e1);
+  border-radius: 12px;
+  padding: 24px;
+  text-align: center;
+  background: var(--surface-subtle, #f8fafc);
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.upload-dropzone:hover {
+  border-color: var(--primary, #3b82f6);
+}
+.upload-textarea {
+  width: 100%;
+  font-family: monospace;
+  font-size: 12px;
+  padding: 10px;
+  border: 1px solid var(--line, #cbd5e1);
+  border-radius: 8px;
+  resize: vertical;
+}
+.upload-error {
+  color: #ef4444;
+  font-size: 13px;
+}
