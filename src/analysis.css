@@ -1,4 +1,49 @@
-/* Metric-first analysis and the import -> preference -> simulation workflow. */
+/* Investment preferences, holdings and portfolio comparison. */
+.app-sidebar .back-landing{margin-top:auto}
+.company-search-row{display:flex;align-items:center;gap:20px}
+.company-search-row .company-keyword-input{flex:1;min-width:0}
+.company-search-row>span{flex:none;color:#6c8395;font-size:13px}
+.no-recommendations{padding:32px}
+.company-search-results{margin:-6px 0 24px}
+@media(max-width:540px){.company-search-row{flex-wrap:wrap;gap:10px}.company-search-row .company-keyword-input{flex-basis:100%}}
+.holding-company{display:flex;align-items:center;gap:10px;min-width:190px}
+.holding-company>i{flex:none;width:35px;height:35px;display:grid;place-items:center;border-radius:8px;color:#fff;font-size:12px;font-style:normal}
+.holding-company small,.comparison-symbol{display:block;color:#687c90;font-size:12px;font-weight:400;margin-top:5px}
+.info-trigger{display:inline-flex;align-items:center;gap:6px;border:0;padding:0;background:transparent;color:inherit;text-align:left;font:inherit;cursor:help;white-space:normal}
+.info-trigger>svg{flex:none;color:#7f98ad}
+.info-trigger:hover{color:#247255}
+.info-trigger:focus-visible{outline:2px solid #417bb7;outline-offset:3px;border-radius:3px}
+.info-popover{position:fixed;z-index:500;padding:20px;border:1px solid #d1e1d8;border-radius:12px;background:#fff;color:#294b3e;box-shadow:0 12px 40px #123f352b;max-height:calc(100dvh - 32px);overflow:auto;pointer-events:none;font:14px/1.7 "DM Sans Variable",sans-serif}
+.info-popover>strong{display:block;font-size:16px;line-height:1.4}
+.info-popover p{margin:12px 0 0;color:#526d62;font-size:13px}
+.popover-symbol{display:block;color:#74897e;font-size:12px;margin-top:5px}
+.popover-score{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#edf6f0;border-radius:7px;padding:9px 12px;margin-top:14px;font-size:12px}
+.popover-score b{font-size:21px;color:#247255}
+.automatic-fx{border:1px solid #d8e7de;background:#f3f8f5;border-radius:9px;padding:16px;margin-top:18px;font-size:14px}
+.automatic-fx p{font-size:13px;color:#627b6e;margin:6px 0 12px}
+.automatic-fx>div{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-top:1px solid #dfebe4;font-variant-numeric:tabular-nums}
+.company-search-panel{padding:20px 24px;background:#fff;border:1px solid #dce5ed;border-radius:12px;margin:0 0 24px}
+.company-search-panel>label{display:block;color:#2e4965;font-weight:650;font-size:15px;margin-bottom:12px}
+.company-keyword-input{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid #cbd8e5;border-radius:8px;background:#f8fafc;color:#6e8aa3}
+.company-keyword-input:focus-within{outline:2px solid #417bb7;outline-offset:2px}
+.company-keyword-input input{flex:1;min-width:0;padding:0;border:0;background:transparent;font-size:15px;outline:none!important}
+.company-keyword-input button{display:flex;border:0;background:none;color:#637b92;padding:0;flex:none}
+.company-search-panel>p{font-size:13px;color:#657c93;margin:10px 0 0}
+.company-search-results{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-top:18px}
+.company-search-results button{display:flex;flex-direction:column;gap:7px;align-items:flex-start;border:1px solid #d8e5de;background:#f3f8f5;border-radius:8px;padding:14px;text-align:left;color:#285743;font:inherit}
+.company-search-results button:hover{border-color:#5b9375;background:#eaf4ed}
+.company-search-results small{color:#617a6d;font-size:12px}
+.candidate-fit{display:flex;justify-content:space-between;gap:12px;color:#627b91;font-size:13px;margin-bottom:16px;flex-wrap:wrap}
+.share-calculation{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,.75fr) auto minmax(0,1.2fr);gap:8px;align-items:center;background:#f0f6f3;border:1px solid #dae8df;border-radius:9px;padding:16px 12px;margin:18px 0 8px;font-variant-numeric:tabular-nums}
+.share-calculation span{display:block;font-size:11px;color:#6c8577;margin-bottom:7px}
+.share-calculation strong{display:block;font-size:14px;color:#235a43;overflow-wrap:anywhere}
+.share-calculation i{font-style:normal;color:#7d988a;font-size:16px}
+.budget-remainder{font-size:13px;color:#648273;margin:8px 0}
+.holding-table-hint{font-size:12px;color:#637c91;margin:20px 18px 0}
+.comparison-panel .company-comparison{min-width:1000px}
+.company-comparison td{font-size:13px}
+.company-comparison tbody th{min-width:185px}
+@media(max-width:780px){.company-search-panel{padding:18px}.company-search-panel>label{font-size:14px}.share-calculation{padding:14px 10px;gap:6px}.share-calculation strong{font-size:13px}.info-popover{padding:16px}}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .button{gap:8px}.button:disabled,button:disabled{cursor:not-allowed;opacity:.55}
 .workbench p,.workbench small{line-height:1.6}
