@@ -126,6 +126,10 @@ export type PortfolioStats = {
   ann_ret: number | null;
   ann_vol: number | null;
   g_avg: number | null;
+  exposures: Record<string, number>;
+  n_positions: number;
+  top_weight: number;
+  effective_n: number;
 };
 
 export type Recommendation = {

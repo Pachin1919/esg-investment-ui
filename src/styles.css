@@ -2893,3 +2893,18 @@ tbody tr:hover {
 .industry-filter input {
   accent-color: var(--primary);
 }
+.portfolio-stats {
+  margin-top: 22px;
+}
+.portfolio-stats h3 {
+  margin: 18px 0 4px;
+  font-size: 15px;
+}
+.portfolio-stats table {
+  width: 100%;
+  margin-bottom: 8px;
+}
+.portfolio-stats td small {
+  font-size: 12px;
+  color: var(--muted);
+}
