@@ -106,12 +106,16 @@ def test_firms_with_greenness_only_are_listed(tmp_path, monkeypatch):
                   "e_score": [3.0, 6.0, 7.0], "e_weight": [40.0, 30.0, 30.0]}).to_csv(out / "det_greenness_tw.csv", index=False)
     pd.DataFrame({"firm_id": ["1101.TW", "2330.TW"], "name": ["TCC", "TSMC"],
                   "sector": ["Cement", "Semiconductor"]}).to_parquet(raw / "universe_twse.parquet")
+    pd.DataFrame({"firm_id": ["1101.TW", "2330.TW", "2330.TW"], "year": [2025, 2024, 2025],
+                  "walk": [9.9, 1.0, 6.5], "walk_intensity_level": [9.9, 1.0, 6.0]}).to_csv(out / "det_walk_tw.csv", index=False)
     df = dataset.load_market("tw").set_index("firm_id")
     assert list(df.index) == ["1101.TW", "2330.TW"]
+    assert df.loc["1101.TW", "walk"] == 1.7  # the greenwashing row keeps its own walk
     assert df.loc["1101.TW", "talk"] == 10.0 and df.loc["1101.TW", "e_score"] == 3.0
     tsmc = format_company_for_ui(df.reset_index().iloc[1])
     assert tsmc["name"] == "TSMC" and tsmc["sector"] == "Semiconductor" and tsmc["region"] == "Taiwan"
     assert tsmc["score"] == 7.0  # latest greenness year
+    assert tsmc["walk"] == 6.5 and tsmc["carbon"] == 6.0  # walk table, same year as the greenness row
     assert tsmc["talk"] is None and tsmc["gap"] is None and tsmc["greenwasher"] is False
     (out / "det_greenwashing_tw.csv").unlink()
     assert len(dataset.load_market("tw")) == 2  # greenness alone is enough

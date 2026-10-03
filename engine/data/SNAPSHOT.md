@@ -17,6 +17,7 @@ anything else the pipeline writes there is still left out of the repo.
 | `data/raw/fx_monthly.parquet` | Month-end FX rates for pooling markets in HKD |
 | `data/raw/fundamentals_*.parquet`, `data/processed/emissions_tw.parquet` | Revenue and emissions inputs |
 | `outputs/det_greenness_*.csv`, `det_greenwashing_*.csv` | E-score, E-weight, greenness, talk/walk, flags |
+| `outputs/det_walk_tw.csv` | Walk for every Taiwan firm with emissions data (the greenwashing table only has firms with a scored report) |
 | `outputs/gmb_monthly_*.csv`, `emissions_hk.csv`, `talkwalk_*_hk.csv` | Green factor, extracted emissions, LLM talk/walk |
 
 To refresh: re-run the pipeline (or sync from the bucket), copy the same files here and
