@@ -2858,3 +2858,38 @@ tbody tr:hover {
   font-size: 12px;
   color: var(--muted);
 }
+.industry-filter {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 18px;
+}
+.industry-filter-actions {
+  display: flex;
+  gap: 14px;
+}
+.industry-filter details {
+  border-top: 1px solid var(--line);
+  padding: 6px 0;
+}
+.industry-filter summary,
+.industry-filter details label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.industry-filter details label {
+  padding: 4px 0 4px 24px;
+}
+.industry-filter summary span,
+.industry-filter details label span {
+  flex: 1;
+}
+.industry-filter small {
+  font-size: 12px;
+  color: var(--muted);
+}
+.industry-filter input {
+  accent-color: var(--primary);
+}

@@ -3,6 +3,7 @@ import { ArrowRight, WarningCircle } from "@phosphor-icons/react";
 import type { Company } from "./data";
 import { recommendPortfolio } from "./api";
 import type { Recommendation } from "./api";
+import { IndustryFilter } from "./IndustryFilter";
 
 const MIN_TRADE = 0.001;
 
@@ -46,6 +47,7 @@ export function Recommend({
   const [green, setGreen] = useState(4);
   const [capital, setCapital] = useState(100000);
   const [newCapital, setNewCapital] = useState(0);
+  const [industries, setIndustries] = useState<string[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Recommendation | null>(null);
@@ -63,6 +65,7 @@ export function Recommend({
       green_score: green,
       max_new_capital: newCapital,
       market,
+      ...(industries ? { filters: { include_industries: industries } } : {}),
     });
     if ("error" in res) {
       setError(res.error);
@@ -104,6 +107,7 @@ export function Recommend({
             value={green}
             onChange={setGreen}
           />
+          <IndustryFilter market={market} onChange={setIndustries} />
           <div className="preference-amounts">
             <label>
               <span>Portfolio value (HKD)</span>
@@ -115,7 +119,7 @@ export function Recommend({
             </label>
           </div>
           <div className="editor-actions">
-            <button className="primary" onClick={run} disabled={loading || capital <= 0 || portfolio.length === 0}>
+            <button className="primary" onClick={run} disabled={loading || capital <= 0 || portfolio.length === 0 || industries?.length === 0}>
               {loading ? "Optimising…" : "Get recommendations"} <ArrowRight size={16} />
             </button>
           </div>
@@ -181,7 +185,7 @@ export function Recommend({
                         </td>
                         <td>
                           <span className={`badge ${t.side === "buy" ? "mint" : "amber"}`}>
-                            {t.side === "buy" ? "Buy" : "Sell"}
+                            {t.side === "buy" ? "Buy" : t.side.includes("outside") ? "Sell · outside filter" : "Sell"}
                           </span>
                         </td>
                         <td>{money(t.capital_delta)}</td>

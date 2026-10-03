@@ -145,6 +145,7 @@ export async function recommendPortfolio(body: {
   green_score: number;
   max_new_capital: number;
   market: "hk" | "tw";
+  filters?: { include_industries: string[] };
 }): Promise<Recommendation | { error: string }> {
   try {
     const res = await fetch("/api/portfolio/recommend", {
@@ -159,5 +160,17 @@ export async function recommendPortfolio(body: {
     return await res.json();
   } catch {
     return { error: "The engine is not reachable." };
+  }
+}
+
+export type SectorOption = { sector: string; n: number; industries: { industry: string; n: number }[] };
+
+export async function fetchFilterOptions(market: "hk" | "tw"): Promise<SectorOption[]> {
+  try {
+    const res = await fetch(`/api/portfolio/filters?market=${market}`);
+    if (!res.ok) return [];
+    return (await res.json()).sectors ?? [];
+  } catch {
+    return [];
   }
 }
