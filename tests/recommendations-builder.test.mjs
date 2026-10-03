@@ -77,6 +77,12 @@ test("three-panel generation, selection, search, persistence and exports",async(
   assert.equal(q('input[aria-label="Select all recommended companies"]').indeterminate,true);
   assert.notEqual(f.metrics(initial.portfolio).greenScore.value,f.metrics(changed.portfolio).greenScore.value);
   assert.equal(qa('.allocation-ring circle').length,3,"Industry chart follows selected sectors");
+  const allocationSegment=q(".allocation-segment");
+  await act(async()=>allocationSegment.dispatchEvent(new MouseEvent("mouseover",{bubbles:true})));
+  assert.ok(allocationSegment.classList.contains("active"),"Hovered allocation segment expands");
+  assert.ok(q(".industry-allocation li.active"),"Hovered segment highlights its matching legend label");
+  await act(async()=>allocationSegment.dispatchEvent(new MouseEvent("mouseout",{bubbles:true})));
+  assert.equal(q(".industry-allocation li.active"),null,"Allocation highlight clears when the pointer leaves");
   await fill('input[aria-label="Search recommendations"]',"solar");
   assert.equal(qa(".builder-company-table tbody tr").length,2);
   assert.equal(currentRecommendation().portfolio.holdings.length,2,"Search does not alter selection");

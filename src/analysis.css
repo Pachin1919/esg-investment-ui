@@ -90,9 +90,15 @@
 .builder-subheading{font-size:13px;font-weight:650;color:#36536a;margin:22px 20px 12px}
 .industry-allocation{padding:0 20px 3px}.allocation-ring{width:168px;height:168px;margin:0 auto 10px;position:relative}
 .allocation-ring svg{display:block;width:100%;height:100%}.allocation-ring>span{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+.allocation-segment{cursor:pointer;transform-box:view-box;transform-origin:84px 84px;transition:transform .22s cubic-bezier(.2,.8,.2,1),stroke-width .22s ease,filter .22s ease;outline:none}
+.allocation-segment:hover,.allocation-segment:focus-visible,.allocation-segment.active{stroke-width:23;filter:drop-shadow(0 0 1.5px #fff) drop-shadow(0 0 5px var(--allocation-glow));animation:allocation-segment-pop .34s cubic-bezier(.2,.9,.25,1.35) both}
+@keyframes allocation-segment-pop{0%{transform:scale(1)}55%{transform:scale(1.075)}100%{transform:scale(1.045)}}
 .allocation-ring strong{font-size:26px;color:#375966;font-weight:650}.allocation-ring small{font-size:10px;color:#789186;margin-top:4px}
 .industry-allocation ul{list-style:none;padding:0;margin:0}.industry-allocation li{display:flex;align-items:center;gap:7px;margin:9px 0;font-size:10px;color:#6e8192;line-height:1.5}
 .industry-allocation li>i{width:7px;height:7px;border-radius:2px;flex:none}.industry-allocation li>strong{margin-left:auto;font-weight:650;color:#506d7b}
+.industry-allocation li>span{display:inline-block;transform-origin:left center;transition:transform .22s ease,color .22s ease,font-weight .22s ease}
+.industry-allocation li.active>span{color:#244e3c;font-weight:700;transform:scale(1.12)}
+@media(prefers-reduced-motion:reduce){.allocation-segment,.industry-allocation li>span{transition:none}.allocation-segment:hover,.allocation-segment:focus-visible,.allocation-segment.active{animation:none;transform:scale(1.045)}}
 .selected-holdings-table{min-width:300px}.selected-holdings-table th:first-child{padding-left:20px}
 .selected-holdings-table th:last-child,.selected-holdings-table td:last-child{padding-right:20px;text-align:right}
 .selected-holdings-table tbody th,.selected-holdings-table tbody td{padding:12px 8px;border-bottom:1px solid #edf1f4;font-size:10px;color:#426074;line-height:1.5}
@@ -120,7 +126,7 @@
 .info-trigger>svg{flex:none;color:#7f98ad}
 .info-trigger:hover{color:#247255}
 .info-trigger:focus-visible{outline:2px solid #417bb7;outline-offset:3px;border-radius:3px}
-.info-popover{position:fixed;z-index:500;padding:20px;border:1px solid #d1e1d8;border-radius:12px;background:#fff;color:#294b3e;box-shadow:0 12px 40px #123f352b;max-height:calc(100dvh - 32px);overflow:auto;pointer-events:none;font:14px/1.7 "DM Sans Variable",sans-serif}
+.info-popover{position:fixed;z-index:500;padding:20px;border:1px solid #d1e1d8;border-radius:12px;background:#fff;color:#294b3e;box-shadow:0 12px 40px #123f352b;max-height:calc(100dvh - 32px);overflow:auto;pointer-events:auto;font:14px/1.7 "DM Sans Variable",sans-serif}
 .info-popover>strong{display:block;font-size:16px;line-height:1.4}
 .info-popover p{margin:12px 0 0;color:#526d62;font-size:13px}
 .popover-symbol{display:block;color:#74897e;font-size:12px;margin-top:5px}

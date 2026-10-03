@@ -16,12 +16,22 @@ export const metricExplanations: Record<string,string> = {
 export function InfoPopover({ label, children, content }: { label:string; children:ReactNode; content:ReactNode }) {
   const id=useId();
   const trigger=useRef<HTMLButtonElement>(null);
+  const closeTimer=useRef<number|null>(null);
   const [position,setPosition]=useState<{left:number;top:number;width:number}|null>(null);
+  const cancelClose=()=>{
+    if(closeTimer.current!==null){window.clearTimeout(closeTimer.current);closeTimer.current=null;}
+  };
+  const closeSoon=()=>{
+    cancelClose();
+    closeTimer.current=window.setTimeout(()=>{setPosition(null);closeTimer.current=null;},140);
+  };
   const open=()=>{
+    cancelClose();
     const rect=trigger.current!.getBoundingClientRect();
     const width=Math.min(330,window.innerWidth-32);
     setPosition({left:Math.max(16,Math.min(rect.left,window.innerWidth-width-16)),top:Math.max(16,Math.min(rect.bottom+10,window.innerHeight-250)),width});
   };
+  useEffect(()=>()=>cancelClose(),[]);
   useEffect(()=>{
     if(!position)return;
     const reposition=()=>{
@@ -33,10 +43,10 @@ export function InfoPopover({ label, children, content }: { label:string; childr
     return ()=>{window.removeEventListener("scroll",reposition,true);window.removeEventListener("resize",reposition);};
   },[position]);
   return <><button ref={trigger} type="button" className="info-trigger" aria-label={`About ${label}`} aria-describedby={position?id:undefined}
-    onMouseEnter={open} onMouseLeave={()=>{if(document.activeElement!==trigger.current)setPosition(null);}}
-    onFocus={open} onBlur={()=>setPosition(null)} onClick={open} onKeyDown={e=>{if(e.key==="Escape")setPosition(null);}}>
+    onMouseEnter={open} onMouseLeave={closeSoon} onMouseDown={e=>e.preventDefault()}
+    onFocus={open} onBlur={closeSoon} onKeyDown={e=>{if(e.key==="Escape")setPosition(null);}}>
     {children}<Info size={14}/></button>
-    {position&&createPortal(<div id={id} role="tooltip" className="info-popover" style={position}>{content}</div>,document.body)}</>;
+    {position&&createPortal(<div id={id} role="tooltip" className="info-popover" style={position} onMouseEnter={cancelClose} onMouseLeave={closeSoon}>{content}</div>,document.body)}</>;
 }
 export function CompanyInfo({ company }: { company:Holding }) {
   return <InfoPopover label={company.name} content={<><strong>{company.name}</strong><span className="popover-symbol">{displayTicker(company.ticker)} · {company.exchange}</span><div className="popover-score"><span>Environmental score</span><b>{score(company.eScore)}</b></div><p>{greenExplanation(company)}</p></>}>{company.name}</InfoPopover>;

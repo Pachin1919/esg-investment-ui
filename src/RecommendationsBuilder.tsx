@@ -14,15 +14,16 @@ type Props = {
 const collapsedCompanyLimit=6;
 
 function AllocationChart({portfolio}:{portfolio:Portfolio}) {
+  const [activeSegment,setActiveSegment]=useState<string|null>(null);
   const total=totalValue(portfolio);
   const segments=industries.map(industry=>({...industry,value:portfolio.holdings.filter(h=>h.industryId===industry.id).reduce((sum,h)=>sum+h.value,0)})).filter(s=>s.value>0);
   const circumference=2*Math.PI*62;
   let offset=0;
   return <div className="industry-allocation"><div className="allocation-ring">
     <svg viewBox="0 0 168 168" role="img" aria-label="Selected portfolio industry allocation"><circle cx="84" cy="84" r="62" fill="none" stroke="#eaf0f4" strokeWidth="20"/>
-      {segments.map(segment=>{const length=segment.value/total*circumference;const previous=offset;offset+=length;return <circle key={segment.id} cx="84" cy="84" r="62" fill="none" stroke={segment.color} strokeWidth="20" strokeDasharray={`${length} ${circumference-length}`} strokeDashoffset={-previous} transform="rotate(-90 84 84)"><title>{segment.label}: {percent(segment.value/total,1)}</title></circle>;})}
+      {segments.map(segment=>{const length=segment.value/total*circumference;const previous=offset;offset+=length;const active=activeSegment===segment.id;return <g key={segment.id} transform="rotate(-90 84 84)"><circle className={active?"allocation-segment active":"allocation-segment"} cx="84" cy="84" r="62" fill="none" stroke={segment.color} strokeWidth="20" strokeDasharray={`${length} ${circumference-length}`} strokeDashoffset={-previous} tabIndex={0} role="button" aria-label={`${segment.label}: ${percent(segment.value/total,1)}`} aria-pressed={active} style={{"--allocation-glow":segment.color} as React.CSSProperties} onMouseEnter={()=>setActiveSegment(segment.id)} onMouseLeave={()=>setActiveSegment(null)} onFocus={()=>setActiveSegment(segment.id)} onBlur={()=>setActiveSegment(null)} onClick={()=>setActiveSegment(segment.id)}><title>{segment.label}: {percent(segment.value/total,1)}</title></circle></g>;})}
     </svg><span><strong>{portfolio.holdings.length}</strong><small>companies</small></span></div>
-    <ul>{segments.map(segment=><li key={segment.id}><i style={{background:segment.color}}/><span>{segment.label}</span><strong>{percent(segment.value/total,1)}</strong></li>)}</ul>
+    <ul>{segments.map(segment=><li key={segment.id} className={activeSegment===segment.id?"active":""}><i style={{background:segment.color}}/><span>{segment.label}</span><strong>{percent(segment.value/total,1)}</strong></li>)}</ul>
   </div>;
 }
 
