@@ -157,3 +157,22 @@ def screen_universe(text: str, universe: pd.DataFrame, mktcap: pd.Series,
     report = {"method": method, "spec": spec.model_dump(), "n_candidates": len(firm_ids),
               "rationale": spec.rationale}
     return firm_ids, report
+
+
+def screen_filter(spec: PreferenceFilter, universe: pd.DataFrame, mktcap: pd.Series) -> tuple[list[str], dict]:
+    """Structured filter -> (candidate firm_ids, screen report). No model and no text parsing:
+    the caller picked the values (e.g. industry checkboxes); unknown values are dropped."""
+    spec = _sanitize(spec.model_copy(deep=True), _values(universe))
+    firm_ids = apply_filter(universe, spec, mktcap)
+    report = {"method": "filter", "spec": spec.model_dump(), "n_candidates": len(firm_ids),
+              "rationale": spec.rationale}
+    return firm_ids, report
+
+
+def filter_options(universe: pd.DataFrame) -> list[dict]:
+    """Sector -> industry tree with firm counts: the values `screen_filter` accepts."""
+    df = universe.drop_duplicates("firm_id").dropna(subset=["sector", "industry"])
+    return [{"sector": sector, "n": len(grp),
+             "industries": [{"industry": ind, "n": int(n)}
+                            for ind, n in grp["industry"].value_counts().sort_index().items()]}
+            for sector, grp in df.groupby("sector")]

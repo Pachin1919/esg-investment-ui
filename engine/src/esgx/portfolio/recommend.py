@@ -73,6 +73,7 @@ def recommend(
     w_max: float = 0.15,
     min_trade: float = 0.005,
     universe: list[str] | None = None,
+    keep_outside: bool = False,
 ) -> dict:
     """Trade list that moves the current portfolio toward the target risk/green profile.
 
@@ -88,6 +89,9 @@ def recommend(
     GREEN_PCTL (score 1 = no tilt). `universe`: candidate
     subset from the preference screen (`screen.screen_universe`); holdings outside it are
     recommended for sale ("sell (outside preferences)"), holdings without betas stay frozen.
+    `keep_outside`: holdings outside `universe` are left untouched instead ("hold (outside
+    filter)") — the universe then only restricts what is bought and rebalanced; like the
+    unmodeled ones they are outside the optimized sleeve and the before/after stats.
     Returns weights, trades, before/after stats and the unmodeled list."""
     lam = _score(green_score, GREEN_LAM, "green_score")  # fallback when the anchor is unusable
     if g_target is not None and not 0 < g_target < 1:
@@ -111,7 +115,8 @@ def recommend(
         raise ValueError("the preference filter leaves no candidate assets")
     unmodeled = h.index.difference(all_names)
     outside_pref = h.index.intersection(all_names).difference(candidates)
-    w_frozen = float(h[unmodeled].sum() / target_total)
+    kept = outside_pref if keep_outside else outside_pref[:0]
+    w_frozen = float((h[unmodeled].sum() + h[kept].sum()) / target_total)
     if w_frozen >= 1.0:
         raise ValueError("none of the holdings have estimated betas; nothing to optimize")
 
@@ -134,6 +139,7 @@ def recommend(
     w0_full[h.index.intersection(all_names)] = h[h.index.intersection(all_names)] / target_total
     w_full = pd.Series(0.0, index=all_names)
     w_full[candidates] = w
+    w_full[kept] = h[kept] / target_total
     frozen = h[unmodeled] / target_total
     w0_full = pd.concat([w0_full, frozen])
     w_full = pd.concat([w_full, frozen])
@@ -147,7 +153,8 @@ def recommend(
     trades["side"] = np.where(trades["dw"] > min_trade, "buy",
                               np.where(trades["dw"] < -min_trade, "sell", "hold"))
     trades.loc[trades["firm_id"].isin(unmodeled), "side"] = "frozen (unmodeled)"
-    trades.loc[trades["firm_id"].isin(outside_pref), "side"] = "sell (outside preferences)"
+    trades.loc[trades["firm_id"].isin(outside_pref), "side"] = (
+        "hold (outside filter)" if keep_outside else "sell (outside preferences)")
     trades = trades.sort_values("dw", ascending=False).reset_index(drop=True)
     w0_current = pd.Series(0.0, index=all_names)
     w0_current[h.index.intersection(all_names)] = h[h.index.intersection(all_names)] / total

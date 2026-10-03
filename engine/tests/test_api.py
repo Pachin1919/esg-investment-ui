@@ -241,6 +241,42 @@ def test_portfolio_recommend_with_preferences_keyword_screen(tmp_path, monkeypat
         app.dependency_overrides.clear()
 
 
+def test_portfolio_recommend_with_industry_filter(tmp_path, monkeypatch):
+    from esgx.api import portfolio_routes as pr
+    from esgx.portfolio import screen
+
+    def no_llm(*a, **k):
+        raise AssertionError("the structured filter must never call a model")
+
+    monkeypatch.setattr(screen.llm, "parse", no_llm)
+    store = _portfolio_store_with_universe(tmp_path)
+    app.dependency_overrides[pr._store] = lambda: store
+    try:
+        c = TestClient(app)
+        opts = c.get("/api/portfolio/filters").json()
+        assert opts["n_firms"] == 35
+        assert {s["sector"]: s["n"] for s in opts["sectors"]} == {"Energy": 17, "Tech": 18}
+        assert opts["sectors"][1]["industries"] == [{"industry": "Software", "n": 18}]
+        body = {"holdings": {"F000.HK": 5000.0, "F020.HK": 5000.0}, "risk_score": 3, "green_score": 4,
+                "kappa": 0.0, "filters": {"include_industries": ["Software", "No Such Industry"]}}
+        r = c.post("/api/portfolio/recommend", json=body)
+        assert r.status_code == 200, r.json()
+        d = r.json()
+        assert d["screen"]["method"] == "filter" and d["screen"]["n_candidates"] == 18
+        assert d["screen"]["spec"]["include_industries"] == ["Software"]  # unknown value dropped
+        row = {t["firm_id"]: t for t in d["trades"]}
+        # the holding outside the filter is left untouched; only filtered names are traded
+        assert row["F000.HK"]["side"] == "hold (outside filter)"
+        assert row["F000.HK"]["w_target"] == row["F000.HK"]["w_current"] == 0.5
+        assert all(t["firm_id"] >= "F017" for t in d["trades"] if t["side"] in ("buy", "sell"))
+        assert sum(t["w_target"] for t in d["trades"]) == pytest.approx(1.0, abs=1e-6)
+        assert c.post("/api/portfolio/recommend", json=body).json()["trades"] == d["trades"]  # deterministic
+        body["filters"] = {"exclude_sectors": ["Energy", "Tech"]}
+        assert c.post("/api/portfolio/recommend", json=body).status_code == 400  # nothing left
+    finally:
+        app.dependency_overrides.clear()
+
+
 def test_taiwan_is_served(client):
     # the other session's "no taiwan" was the API wiring, not the bucket: TW tables must be visible
     firms = {f["firm_id"]: f for f in client.get("/api/firms").json()}
