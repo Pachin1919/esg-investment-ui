@@ -270,6 +270,10 @@ def test_portfolio_recommend_with_industry_filter(tmp_path, monkeypatch):
         assert row["F000.HK"]["w_target"] == row["F000.HK"]["w_current"] == 0.5
         assert all(t["firm_id"] >= "F017" for t in d["trades"] if t["side"] in ("buy", "sell"))
         assert sum(t["w_target"] for t in d["trades"]) == pytest.approx(1.0, abs=1e-6)
+        # stats describe the whole portfolio: the kept holding counts, and factor betas are reported
+        assert d["after"]["n_positions"] >= 2 and d["after"]["top_weight"] == pytest.approx(0.5, abs=1e-6)
+        assert {"mkt_rf", "smb", "hml", "rmw", "cma", "mom"} <= set(d["after"]["exposures"])
+        assert d["before"]["exposures"]["mkt_rf"] == pytest.approx(0.9, abs=0.3)  # fixture loads 0.9 on market
         assert c.post("/api/portfolio/recommend", json=body).json()["trades"] == d["trades"]  # deterministic
         body["filters"] = {"exclude_sectors": ["Energy", "Tech"]}
         assert c.post("/api/portfolio/recommend", json=body).status_code == 400  # nothing left
