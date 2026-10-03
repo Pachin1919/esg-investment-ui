@@ -58,32 +58,31 @@ class CsvUploadRequest(BaseModel):
     csv_text: str
 
 
-def load_latest_dataset() -> pd.DataFrame:
-    """Load latest scored companies from processed or outputs directories, or fallback to HK universe."""
-    scores_file = OUTPUT_DIR / "main_scores.csv"
-    det_gw_hk = OUTPUT_DIR / "det_greenwashing_hk.csv"
-    det_gw_us = OUTPUT_DIR / "det_greenwashing.csv"
+UNIVERSE_FILES = {"hk": ("universe_hk.parquet", "universe_hsi.parquet", "universe_hsci.parquet"),
+                  "tw": ("universe_twse.parquet",)}
 
-    # Check for Hong Kong deterministic greenwashing output
-    if det_gw_hk.exists():
-        df = pd.read_csv(det_gw_hk)
-        for univ_name in ("universe_hk.parquet", "universe_hsi.parquet", "universe_hsci.parquet"):
-            univ_file = RAW_DIR / univ_name
-            if univ_file.exists():
-                break
-        if univ_file.exists():
-            univ = pd.read_parquet(univ_file)
-            df = df.merge(univ[["firm_id", "name", "ticker"]], on="firm_id", how="left")
-        return df
 
-    # Check for US deterministic output
-    if det_gw_us.exists():
-        df = pd.read_csv(det_gw_us)
-        univ_file = RAW_DIR / "universe_sp500.parquet"
-        if univ_file.exists():
-            univ = pd.read_parquet(univ_file)
-            df = df.merge(univ[["firm_id", "name", "ticker"]], on="firm_id", how="left")
-        return df
+def _merge_universe_names(df: pd.DataFrame, market: str) -> pd.DataFrame:
+    """Attach display names from the market's universe; `ticker` falls back to firm_id
+    (the current universe schemas have no ticker column)."""
+    for name in UNIVERSE_FILES[market]:
+        univ_file = RAW_DIR / name
+        if not univ_file.exists():
+            continue
+        univ = pd.read_parquet(univ_file)
+        cols = ["firm_id", "name"] + (["ticker"] if "ticker" in univ.columns else [])
+        df = df.merge(univ[cols], on="firm_id", how="left")
+        break
+    if "ticker" not in df.columns:
+        df["ticker"] = df["firm_id"]
+    return df
+
+
+def load_latest_dataset(market: str = "hk") -> pd.DataFrame:
+    """Load latest scored companies for one market (hk or tw) from outputs, or sample rows."""
+    det = OUTPUT_DIR / f"det_greenwashing_{market}.csv"
+    if det.exists():
+        return _merge_universe_names(pd.read_csv(det), market)
 
     # Otherwise load baseline representative demo scoring based on real HK/TW companies
     sample_metrics = [
@@ -115,13 +114,19 @@ def health() -> dict[str, Any]:
             "returnForecast": False,  # Hypothesis under research
             "csvUpload": True,
         },
+        "markets_available": {
+            "hk": (OUTPUT_DIR / "det_greenwashing_hk.csv").exists(),
+            "tw": (OUTPUT_DIR / "det_greenwashing_tw.csv").exists(),
+        },
     }
 
 
 @app.get("/api/companies")
-def get_companies() -> list[dict[str, Any]]:
-    """Return all scored companies formatted for the Green Street UI."""
-    df = load_latest_dataset()
+def get_companies(market: str = "hk") -> list[dict[str, Any]]:
+    """Return all scored companies of one market (hk or tw) formatted for the Green Street UI."""
+    if market not in ("hk", "tw"):
+        raise HTTPException(400, f"unknown market {market!r} (hk and tw exist)")
+    df = load_latest_dataset(market)
     weights = [28.0, 20.0, 24.0, 16.0, 12.0] if len(df) == 5 else None
     return dataframe_to_companies(df, default_weights=weights)
 
