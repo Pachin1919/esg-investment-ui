@@ -22,6 +22,8 @@ TABLES: dict[str, list[str]] = {
     "firms": ["firm_id", "name", "sector", "industry", "cik", "country"],
     # monthly market data
     "prices_monthly": ["firm_id", "month", "ret", "mktcap"],
+    # month-end FX: base currency (HKD) per unit of the quoted currency, pair e.g. "TWDHKD"
+    "fx_monthly": ["month", "pair", "rate"],
     # Ken French factors, decimal
     "factors_monthly": ["month", "mkt_rf", "smb", "hml", "rmw", "cma", "mom", "rf"],
     # annual fundamentals

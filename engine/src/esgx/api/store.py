@@ -71,11 +71,17 @@ class DataStore:
             "prices_tw": self.raw / "prices_monthly_tw.parquet",
             "factors_asia_pacific_ex_japan": self.raw / "factors_monthly_asia_pacific_ex_japan.parquet",
             "factors_emerging": self.raw / "factors_monthly_emerging.parquet",
+            "fx_monthly": self.raw / "fx_monthly.parquet",
         }
 
     def prices(self, market: str = "hk") -> pd.DataFrame:
         path = self._paths().get(f"prices_{market}")
         return self.table(path) if path else pd.DataFrame()
+
+    def fx(self, pair: str) -> pd.DataFrame:
+        """Month-end rates for one pair (base currency per unit of the quoted currency)."""
+        df = self.table(self._paths()["fx_monthly"])
+        return df[df["pair"] == pair] if not df.empty else df
 
     def factors(self, region: str = "asia_pacific_ex_japan") -> pd.DataFrame:
         path = self._paths().get(f"factors_{region}")
