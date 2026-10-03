@@ -126,6 +126,25 @@ export type PortfolioStats = {
   ann_ret: number | null;
   ann_vol: number | null;
   g_avg: number | null;
+  exposures: Record<string, number>;
+  n_positions: number;
+  top_weight: number;
+  effective_n: number;
+};
+
+export type Trade = {
+  firm_id: string;
+  w_current: number;
+  w_target: number;
+  dw: number;
+  capital_delta: number;
+  side: string;
+  capital_current: number;
+  capital_target: number;
+  price: number | null;
+  shares_current: number | null;
+  shares_target: number | null;
+  shares_delta: number | null;
 };
 
 export type Recommendation = {
@@ -135,7 +154,7 @@ export type Recommendation = {
   turnover: number;
   before: PortfolioStats;
   after: PortfolioStats;
-  trades: { firm_id: string; w_current: number; w_target: number; dw: number; capital_delta: number; side: string }[];
+  trades: Trade[];
   unmodeled: { firm_id: string; capital: number; weight: number }[];
 };
 
