@@ -43,7 +43,7 @@ class RecommendRequest(BaseModel):
     vol_target: float | None = Field(None, gt=0.0, le=1.0)
     g_target: float | None = Field(None, gt=0.0, lt=1.0)
     preferences: str | None = None
-    filters: PreferenceFilter | None = None  # deterministic screen; wins over `preferences`
+    filters: PreferenceFilter | None = None  # deterministic screen; wins over `preferences`, keeps holdings outside it
     kappa: float = Field(0.02, ge=0.0)
     w_max: float = Field(0.15, gt=0.0, le=1.0)
     market: str = "hk"
@@ -102,7 +102,8 @@ def recommend_portfolio(req: RecommendRequest, store: Store) -> dict:
                         risk_score=req.risk_score, green_score=req.green_score,
                         kappa=req.kappa, max_new_capital=req.max_new_capital,
                         vol_target=req.vol_target, g_target=req.g_target,
-                        w_max=req.w_max, universe=universe)
+                        w_max=req.w_max, universe=universe,
+                        keep_outside=req.filters is not None)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     return {
