@@ -47,7 +47,7 @@ def test_api_companies(client):
     companies = r.json()
     assert len(companies) >= 5
     # Total allocations should sum to 100%
-    assert sum(c["allocation"] for c in companies) == 100
+    assert sum(c["allocation"] for c in companies) == pytest.approx(100)
 
 
 def test_api_portfolio_analyze(client):
@@ -81,3 +81,12 @@ def test_api_upload_csv(client):
     assert len(data["companies"]) == 2
     assert data["companies"][0]["ticker"] == "0002.HK"
     assert data["companies"][0]["allocation"] == 40.0
+
+
+def test_api_companies_one_scored_row_per_firm(client):
+    companies = client.get("/api/companies?market=hk").json()
+    ids = [c["id"] for c in companies]
+    assert len(ids) == len(set(ids))
+    assert all(c["region"] != "nan" and c["name"] != "nan" for c in companies)
+    # every firm with a walk score carries the same number as its E_score (E_score IS walk)
+    assert all(c["score"] == c["walk"] for c in companies if c["walk"] is not None)

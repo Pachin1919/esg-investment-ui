@@ -121,3 +121,56 @@ export function downloadCsvFile(filename: string, content: string) {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+
+export type PortfolioStats = {
+  ann_ret: number | null;
+  ann_vol: number | null;
+  g_avg: number | null;
+};
+
+export type Recommendation = {
+  params: { vol_target_ann: number | null; g_target_pctl: number | null; n_candidates: number };
+  total_capital: number;
+  new_capital: number;
+  turnover: number;
+  before: PortfolioStats;
+  after: PortfolioStats;
+  trades: { firm_id: string; w_current: number; w_target: number; dw: number; capital_delta: number; side: string }[];
+  unmodeled: { firm_id: string; capital: number; weight: number }[];
+};
+
+export async function recommendPortfolio(body: {
+  holdings: Record<string, number>;
+  risk_score: number;
+  green_score: number;
+  max_new_capital: number;
+  market: "hk" | "tw";
+  filters?: { include_industries: string[] };
+}): Promise<Recommendation | { error: string }> {
+  try {
+    const res = await fetch("/api/portfolio/recommend", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => null);
+      return { error: typeof err?.detail === "string" ? err.detail : "The engine could not produce a recommendation." };
+    }
+    return await res.json();
+  } catch {
+    return { error: "The engine is not reachable." };
+  }
+}
+
+export type SectorOption = { sector: string; n: number; industries: { industry: string; n: number }[] };
+
+export async function fetchFilterOptions(market: "hk" | "tw"): Promise<SectorOption[]> {
+  try {
+    const res = await fetch(`/api/portfolio/filters?market=${market}`);
+    if (!res.ok) return [];
+    return (await res.json()).sectors ?? [];
+  } catch {
+    return [];
+  }
+}

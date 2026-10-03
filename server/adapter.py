@@ -69,7 +69,7 @@ def format_company_for_ui(
     name = str(row.get("name") or firm_id)
     ticker = str(row.get("ticker") or firm_id)
     sector = str(row.get("sector") or "General")
-    region = str(row.get("country") or row.get("region") or ("Hong Kong" if ".HK" in ticker.upper() or firm_id.isdigit() else "US"))
+    region = str(row.get("country") or row.get("region") or ("Taiwan" if ticker.upper().endswith((".TW", ".TWO")) else "Hong Kong"))
 
     def to_float_or_none(val: Any) -> float | None:
         if val is None or pd.isna(val):
@@ -121,7 +121,7 @@ def dataframe_to_companies(df: pd.DataFrame, default_weights: list[float] | None
     companies = []
     n = len(df)
     for i, (_, row) in enumerate(df.iterrows()):
-        alloc = default_weights[i] if default_weights and i < len(default_weights) else (round(100.0 / n) if n else 0)
+        alloc = default_weights[i] if default_weights and i < len(default_weights) else (round(100.0 / n, 2) if n else 0)
         companies.append(format_company_for_ui(row, index=i, default_allocation=alloc))
     
     # Ensure total default allocation sums to exactly 100%
@@ -129,5 +129,5 @@ def dataframe_to_companies(df: pd.DataFrame, default_weights: list[float] | None
         tot = sum(c["allocation"] for c in companies)
         if tot != 100 and tot > 0:
             diff = 100 - tot
-            companies[0]["allocation"] += diff
+            companies[0]["allocation"] = round(companies[0]["allocation"] + diff, 2)
     return companies
