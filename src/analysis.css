@@ -462,3 +462,16 @@
 .comparison-table tr.comparison-section th{padding-top:18px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#7d8f9f;font-weight:650}
 .engine-status{display:flex;align-items:center;gap:8px;margin:0 0 14px;font-size:12px;color:#6b8296}
 .engine-status.error{color:#b13c46}
+
+/* Quote-style emphasis for the old/new comparison. Colors indicate direction. */
+.builder-comparison{--quote-up:#226349;--quote-down:#b13c46;--quote-new:#f2f7fb}
+.builder-comparison .comparison-color-key{display:flex;flex-wrap:wrap;gap:8px 20px;padding:0 22px;color:#687c90;font-size:12px}
+.builder-comparison .comparison-color-key>span{font-weight:600}
+.builder-comparison .comparison-table .comparison-new{background:var(--quote-new);font-weight:650}
+.builder-comparison .comparison-table th.comparison-new{color:#315d80}
+.builder-comparison .comparison-table .comparison-change{font-weight:650}
+.builder-comparison .comparison-up{color:var(--quote-up)}
+.builder-comparison .comparison-down{color:var(--quote-down)}
+.builder-comparison .comparison-flat{color:#687c90}
+.builder-comparison .trade-action.buy{background:#e6f3ec;color:var(--quote-up)}
+.builder-comparison .trade-action.sell{background:#fbecee;color:var(--quote-down)}

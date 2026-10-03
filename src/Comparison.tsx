@@ -11,6 +11,14 @@ type Row = { label: string; info?: string; before: number | null; after: number 
 const pct = (digits: number) => (x: number) => `${(x * 100).toFixed(digits)}%`;
 const dec = (digits: number) => (x: number) => x.toFixed(digits);
 
+// Match the displayed precision so an invisible change stays neutral.
+function change(before: number | null, after: number | null, fmt: (x: number) => string) {
+  if (before === null || after === null) return { tone: "comparison-flat", text: "Unavailable" };
+  const delta = after - before;
+  if (fmt(Math.abs(delta)) === fmt(0)) return { tone: "comparison-flat", text: fmt(0) };
+  return { tone: delta > 0 ? "comparison-up" : "comparison-down", text: `${delta > 0 ? "+" : "−"}${fmt(Math.abs(delta))}` };
+}
+
 function rows(baseline: Portfolio, result: Portfolio, before: PortfolioStats, after: PortfolioStats, targetCapital: number): Row[] {
   const a = metrics(baseline), b = metrics(result), ccy = baseline.baseCurrency;
   return [
@@ -36,19 +44,22 @@ export default function Comparison({ baseline, result, rec, universe }: { baseli
   const ccy = result.baseCurrency;
   const cell = (r: Row, x: number | null) => (x === null ? "Unavailable" : r.fmt(x));
   const positions = rec.trades.filter(t => t.w_current >= MIN_WEIGHT || t.w_target >= MIN_WEIGHT).sort((a, b) => Math.max(b.w_current, b.w_target) - Math.max(a.w_current, a.w_target));
-  return <><div className="table-scroll"><table className="comparison-table"><caption>Portfolio performance</caption><thead><tr><th>Metric</th><th>Old portfolio</th><th>New portfolio</th><th>Change</th></tr></thead>
-    <tbody>{rows(baseline, result, rec.before, rec.after, rec.target_capital).flatMap(r => [
+  return <><div className="comparison-color-key" aria-label="Change direction"><span className="comparison-up">↑ Increase / buy</span><span className="comparison-down">↓ Decrease / sell</span><span>— Unchanged</span></div>
+    <div className="table-scroll"><table className="comparison-table"><caption>Portfolio performance</caption><thead><tr><th>Metric</th><th>Old portfolio</th><th className="comparison-new">New portfolio</th><th>Change</th></tr></thead>
+    <tbody>{rows(baseline, result, rec.before, rec.after, rec.target_capital).flatMap(r => {
+      const delta = change(r.before, r.after, r.fmt);
+      return [
       ...(r.section ? [<tr key={r.section} className="comparison-section"><th scope="rowgroup" colSpan={4}>{r.section}</th></tr>] : []),
       <tr key={r.label}><th scope="row">{r.info ? <InfoPopover label={r.label} content={<><strong>{r.label}</strong><p>{metricExplanations[r.info]}</p></>}>{r.label}</InfoPopover> : r.label}</th>
-        <td>{cell(r, r.before)}</td><td>{cell(r, r.after)}</td><td>{r.before === null || r.after === null ? "Unavailable" : `${r.after - r.before >= 0 ? "+" : "−"}${r.fmt(Math.abs(r.after - r.before))}`}</td></tr>,
-    ])}</tbody></table></div>
+        <td>{cell(r, r.before)}</td><td className="comparison-new">{cell(r, r.after)}</td><td className={`comparison-change ${delta.tone}`}>{delta.text}</td></tr>,
+    ]; })}</tbody></table></div>
     <p className="holding-table-hint">Company details · Scroll for all share values →</p>
-    <div className="table-scroll"><table className="comparison-table company-comparison"><caption>Each company / share</caption><thead><tr><th>Company</th><th>Unit price</th><th>Old units</th><th>New units</th><th>Old total</th><th>New total</th><th>E-score</th><th>Old weight</th><th>New weight</th><th>Action</th></tr></thead>
+    <div className="table-scroll"><table className="comparison-table company-comparison"><caption>Each company / share</caption><thead><tr><th>Company</th><th>Unit price</th><th>Old units</th><th className="comparison-new">New units</th><th>Old total</th><th className="comparison-new">New total</th><th>E-score</th><th>Old weight</th><th className="comparison-new">New weight</th><th>Action</th></tr></thead>
       <tbody>{positions.map(t => {
         const c = universe.get(t.firm_id), a = tradeAction(t.side, t.w_current, t.w_target);
         return <tr key={t.firm_id}><th scope="row">{c ? <CompanyInfo company={toHolding(c, 0)} /> : t.firm_id}<small className="comparison-symbol">{displayTicker(t.firm_id)}{c ? ` · ${c.sector}` : ""}</small></th>
-          <td>{t.price == null ? "Unavailable" : unitMoney(t.price, ccy)}</td><td>{t.shares_current ?? "Unavailable"}</td><td>{t.shares_target ?? "Unavailable"}</td>
-          <td>{money(t.capital_current, ccy)}</td><td>{money(t.capital_target, ccy)}</td><td>{score(c?.score ?? null)}</td>
-          <td>{percent(t.capital_current / rec.total_capital, 1)}</td><td>{percent(t.w_target, 1)}</td><td><span className={`trade-action ${a.tone}`}>{a.label}</span></td></tr>;
+          <td>{t.price == null ? "Unavailable" : unitMoney(t.price, ccy)}</td><td>{t.shares_current ?? "Unavailable"}</td><td className={`comparison-new ${change(t.shares_current, t.shares_target, dec(0)).tone}`}>{t.shares_target ?? "Unavailable"}</td>
+          <td>{money(t.capital_current, ccy)}</td><td className={`comparison-new ${change(t.capital_current, t.capital_target, x => money(x, ccy)).tone}`}>{money(t.capital_target, ccy)}</td><td>{score(c?.score ?? null)}</td>
+          <td>{percent(t.capital_current / rec.total_capital, 1)}</td><td className={`comparison-new ${change(t.capital_current / rec.total_capital, t.w_target, pct(1)).tone}`}>{percent(t.w_target, 1)}</td><td><span className={`trade-action ${a.tone}`}>{a.label}</span></td></tr>;
       })}</tbody></table></div></>;
 }
