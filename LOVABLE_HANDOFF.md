@@ -1,6 +1,8 @@
-# Continue the Verdant UI demo
+# Continue the Green Street UI demo
 
 This is an existing React + TypeScript + Vite frontend. Preserve its functionality when refining the design. The app has two distinct compositions, selectable with the top switch or `?v=blue` / `?v=green`.
+
+The product name is **Green Street**. Keep the front-page slogan exactly as provided: **we make your wallet and the streets green**.
 
 ## Design direction
 

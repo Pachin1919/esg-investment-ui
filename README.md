@@ -10,7 +10,9 @@ React + TypeScript + Vite frontend with two distinct layouts:
 | Clarity blue | White and pale blue; portfolio analysis workspace | `/?v=blue` |
 | Sage green | White and pale green; guided investor experience | `/?v=green` |
 
-**Verdant is a provisional demo name chosen during prototyping, not a confirmed team brand.**
+**Green Street**
+
+> we make your wallet and the streets green
 
 ### Run locally
 

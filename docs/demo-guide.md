@@ -1,6 +1,6 @@
-# Verdant · ESG UI Demo
+# Green Street · ESG UI Demo
 
-2026-10-03 · 两个可运行的前端版本。Verdant 是演示用暂定名称。
+2026-10-03 · 两个可运行的前端版本。产品名称已确认为 Green Street。
 
 ## 预览
 

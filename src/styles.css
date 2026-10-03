@@ -231,8 +231,9 @@ small {
   letter-spacing: 0.4px;
 }
 .brand {
-  font-size: 26px;
-  letter-spacing: -1.3px;
+  font-size: 23px;
+  letter-spacing: -1px;
+  white-space: nowrap;
   display: flex;
   align-items: center;
   font-weight: 800;
@@ -263,7 +264,7 @@ small {
   z-index: 5;
 }
 .sidebar .brand {
-  padding: 0 10px;
+  padding: 0 2px;
   margin-bottom: 50px;
 }
 .nav-caption {
@@ -1954,8 +1955,8 @@ tbody tr:hover {
     padding-left: 12px;
   }
   .sidebar .brand {
-    font-size: 24px;
-    padding-left: 8px;
+    font-size: 19px;
+    padding-left: 0;
   }
   main {
     padding: 28px 24px 0;
@@ -2193,6 +2194,8 @@ tbody tr:hover {
     padding: 7px 14px;
     min-height: 53px;
     gap: 9px;
+    flex-wrap: wrap;
+    justify-content: center;
   }
   .concept-brand {
     font-size: 9px;
@@ -2215,15 +2218,15 @@ tbody tr:hover {
     position: static;
     width: 100%;
     height: auto;
-    padding: 14px 19px;
+    padding: 14px 16px;
     flex-direction: row;
     align-items: center;
     border: 0;
     border-bottom: 1px solid var(--line);
-    gap: 22px;
+    gap: 12px;
   }
   .sidebar .brand {
-    font-size: 23px;
+    font-size: 20px;
     margin: 0;
   }
   .sidebar .brand-period {
@@ -2238,7 +2241,7 @@ tbody tr:hover {
     gap: 3px;
   }
   .sidebar nav button {
-    padding: 9px;
+    padding: 8px;
   }
   .sidebar-profile {
     display: none;
@@ -2698,4 +2701,20 @@ tbody tr:hover {
     transition: none !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* Keep the confirmed product name visible on narrow phone navigation. */
+@media (max-width: 400px) {
+  .sidebar { padding: 14px 12px; gap: 6px; }
+  .sidebar .brand { font-size: 18px; letter-spacing: -0.6px; }
+  .sidebar .brand-symbol { width: 25px; margin-right: 4px; }
+  .sidebar nav { gap: 0; }
+  .sidebar nav button { padding: 7px; }
+}
+
+.page-heading .brand-slogan, .green-hero .brand-slogan {
+  font-size: 15px; font-weight: 500; color: var(--primary); line-height: 1.7;
+}
+@media (max-width: 760px) {
+  .page-heading .brand-slogan, .green-hero .brand-slogan { font-size: 14px; }
 }

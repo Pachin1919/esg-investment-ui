@@ -39,11 +39,11 @@ const navItems = [
 
 function Logo({ version }: { version: string }) {
   return (
-    <a className="brand" href={"?v=" + version} aria-label="Verdant home">
+    <a className="brand" href={"?v=" + version} aria-label="Green Street home">
       <span className="brand-symbol">
         <Leaf size={24} weight="fill" />
       </span>
-      verdant<span className="brand-period">.</span>
+      Green Street
     </a>
   );
 }
@@ -815,7 +815,7 @@ function BlueOverview({
         <div>
           <div className="eyebrow">YOUR PORTFOLIO, IN PERSPECTIVE</div>
           <h1>See beyond the numbers.</h1>
-          <p>Understand the environmental story behind your investments.</p>
+          <p className="brand-slogan">we make your wallet and the streets green</p>
         </div>
         <button className="primary" onClick={onExplore}>
           <SlidersHorizontal size={18} />
@@ -935,10 +935,7 @@ function GreenOverview({
             A clearer view of <br />
             what you own.
           </h1>
-          <p>
-            Connect your investments to their environmental story. Start with
-            understanding.
-          </p>
+          <p className="brand-slogan">we make your wallet and the streets green</p>
           <button className="primary" onClick={onExplore}>
             Explore your portfolio <ArrowUpRight size={19} />
           </button>
@@ -1160,7 +1157,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "verdant-demo-portfolio.json";
+    a.download = "green-street-demo-portfolio.json";
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     setNotice("Sample portfolio downloaded.");
@@ -1179,7 +1176,7 @@ export default function App() {
       </a>
       <div className="concept-bar">
         <span>
-          <span className="concept-brand">VERDANT</span>
+          <span className="concept-brand">GREEN STREET</span>
           <span className="concept-divider" />
           UI CONCEPTS
         </span>
