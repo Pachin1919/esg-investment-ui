@@ -4,13 +4,13 @@ import type { Company } from "./data";
 import { recommendPortfolio } from "./api";
 import type { Recommendation } from "./api";
 import { IndustryFilter } from "./IndustryFilter";
+import { PortfolioCompare } from "./PortfolioCompare";
 import { PortfolioStats } from "./PortfolioStats";
 
 const MIN_TRADE = 0.001;
 
 const pct = (x: number | null | undefined, digits = 1) =>
   x === null || x === undefined ? "—" : `${(x * 100).toFixed(digits)}%`;
-const money = (x: number) => Math.round(Math.abs(x)).toLocaleString("en-US");
 
 function Preference({
   label,
@@ -75,7 +75,6 @@ export function Recommend({
     setLoading(false);
   };
 
-  const kept = (result?.trades ?? []).filter((t) => t.side.startsWith("hold (outside"));
   const trades = (result?.trades ?? [])
     .filter((t) => Math.abs(t.dw) >= MIN_TRADE)
     .sort((a, b) => Math.abs(b.capital_delta) - Math.abs(a.capital_delta));
@@ -87,7 +86,7 @@ export function Recommend({
         <h1>Recommendations for your portfolio.</h1>
         <p>Set your risk and green preference. The engine proposes trades across the whole universe.</p>
       </div>
-      <div className="explore-grid">
+      <div className="explore-grid recommend-grid">
         <section className="panel allocation-editor">
           <div className="section-top">
             <div>
@@ -134,7 +133,7 @@ export function Recommend({
         <section className="panel comparison-panel">
           <div className="section-top">
             <div>
-              <h2>{result ? "Recommended trades" : "Nothing recommended yet"}</h2>
+              <h2>{result ? "Current vs recommended" : "Nothing recommended yet"}</h2>
               <p>
                 {result
                   ? `${trades.length} trades · ${pct(result.turnover, 0)} turnover · ${result.params.n_candidates} candidates considered`
@@ -144,72 +143,8 @@ export function Recommend({
           </div>
           {result && (
             <>
-              <div className="esg-scorecard-grid">
-                <div className="esg-scorecard-card">
-                  <span>Volatility (annual)</span>
-                  <strong>
-                    {pct(result.before.ann_vol)} → {pct(result.after.ann_vol)}
-                  </strong>
-                  <small className="neutral">Target {pct(result.params.vol_target_ann, 0)}</small>
-                </div>
-                <div className="esg-scorecard-card">
-                  <span>Greenness · g</span>
-                  <strong>
-                    {result.before.g_avg?.toFixed(2) ?? "—"} → {result.after.g_avg?.toFixed(2) ?? "—"}
-                  </strong>
-                  <small className="positive">Closer to zero is greener</small>
-                </div>
-                <div className="esg-scorecard-card">
-                  <span>Model-implied return</span>
-                  <strong>
-                    {pct(result.before.ann_ret)} → {pct(result.after.ann_ret)}
-                  </strong>
-                  <small className="neutral">Factor-model estimate, not a forecast</small>
-                </div>
-              </div>
-              <div className="table-scroll">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Company</th>
-                      <th>Action</th>
-                      <th>Amount (HKD)</th>
-                      <th>Weight</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {trades.map((t) => (
-                      <tr key={t.firm_id}>
-                        <td>
-                          <strong>{names.get(t.firm_id)?.name ?? t.firm_id}</strong>
-                          <br />
-                          <small>{t.firm_id}</small>
-                        </td>
-                        <td>
-                          <span className={`badge ${t.side === "buy" ? "mint" : "amber"}`}>
-                            {t.side === "buy" ? "Buy" : "Sell"}
-                          </span>
-                        </td>
-                        <td>{money(t.capital_delta)}</td>
-                        <td>
-                          {pct(t.w_current)} → {pct(t.w_target)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <PortfolioStats before={result.before} after={result.after} />
-              {kept.length > 0 && (
-                <p className="muted small">
-                  Kept unchanged (outside the selected industries): {kept.map((t) => names.get(t.firm_id)?.name ?? t.firm_id).join(", ")}
-                </p>
-              )}
-              {result.unmodeled.length > 0 && (
-                <p className="muted small">
-                  Kept unchanged (no return history in the model): {result.unmodeled.map((u) => u.firm_id).join(", ")}
-                </p>
-              )}
+              <PortfolioCompare trades={result.trades} names={names} />
+              <PortfolioStats before={result.before} after={result.after} volTarget={result.params.vol_target_ann} />
             </>
           )}
         </section>
