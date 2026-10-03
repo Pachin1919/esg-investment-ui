@@ -17,6 +17,13 @@ def client(tmp_path):
         d.mkdir()
     pd.DataFrame({"firm_id": ["0001.HK", "0002.HK"], "name": ["Alpha Holdings", "Beta Power"], "sector": ["Energy", "Utilities"],
                   "industry": ["Oil", "Electric"], "country": ["Hong Kong", "China"]}).to_parquet(raw / "universe_hsi.parquet")
+    pd.DataFrame({"firm_id": ["1101.TW"], "name": ["TCC"], "sector": ["Cement"], "industry": ["Cement"],
+                  "country": ["TW"]}).to_parquet(raw / "universe_twse.parquet")
+    pd.DataFrame({"firm_id": ["1101.TW"], "year": [2025], "scope1": [410.0], "scope2": [80.0],
+                  "scope3": [None], "source": ["twse_esg_openapi"], "matched": [True]}).to_parquet(proc / "emissions_tw.parquet")
+    pd.DataFrame({"firm_id": ["1101.TW"], "year": [2025], "revenue": [50.0], "book_equity": [20.0]}).to_parquet(raw / "fundamentals_twse.parquet")
+    pd.DataFrame({"firm_id": ["1101.TW"], "year": [2025], "provider": ["walk_hard"], "e_score": [2.0],
+                  "e_weight": [50.0], "g": [-4.0], "g_across": [-3.0], "g_within": [-1.0]}).to_csv(out / "det_greenness_tw.csv", index=False)
     pd.DataFrame({"firm_id": ["0001.HK"], "year": [2023], "talk": [6.0], "walk": [2.0], "gap": [4.0], "n_docs": [1]}).to_csv(out / "talkwalk_firm_year_hk.csv", index=False)
     pd.DataFrame({"firm_id": ["0001.HK"], "form": ["esg_report"], "filing_date": ["2024-04-01"], "period": ["2023-12-31"], "accession": ["https://x/a1"],
                   "section": ["full_report"], "talk": [6.0], "walk": [2.0], "gap": [4.0], "glossiness": [1.2], "summary": ["s"]}).to_csv(out / "talkwalk_documents_hk.csv", index=False)
@@ -180,7 +187,7 @@ def test_portfolio_recommend_end_to_end(tmp_path):
         })
         assert r.status_code == 200, r.json()
         d = r.json()
-        assert d["params"]["gamma"] == 8.0 and d["params"]["lam"] == 2.0
+        assert d["params"]["vol_target_ann"] == 0.12 and d["params"]["g_target_pctl"] == 0.9
         assert d["after"]["g_avg"] > d["before"]["g_avg"]
         assert d["after"]["b_gmb"] is not None  # GMB path active (35 names, 24+ months)
         assert d["coverage"]["n_modeled"] == 35 and d["coverage"]["gmb_months"] >= 24
@@ -232,3 +239,17 @@ def test_portfolio_recommend_with_preferences_keyword_screen(tmp_path, monkeypat
         assert r2.json()["screen"]["n_candidates"] == 35
     finally:
         app.dependency_overrides.clear()
+
+
+def test_taiwan_is_served(client):
+    # the other session's "no taiwan" was the API wiring, not the bucket: TW tables must be visible
+    firms = {f["firm_id"]: f for f in client.get("/api/firms").json()}
+    assert "1101.TW" in firms
+    g = client.get("/api/greenness", params={"market": "tw"}).json()
+    assert g["year"] == 2025 and g["firms"][0]["firm_id"] == "1101.TW"
+    hk = client.get("/api/greenness").json()  # default stays HK
+    assert hk["firms"][0]["firm_id"] == "0001.HK"
+    p = client.get("/api/firms/1101.TW").json()
+    assert p["emissions"][0]["scope12"] == 490.0 and p["emissions"][0]["intensity"] == 9.8
+    assert p["greenness"][0]["g"] == -4.0
+    assert client.get("/api/gmb", params={"market": "tw"}).json()["months"] == []  # no file -> empty, not an error
