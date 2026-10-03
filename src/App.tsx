@@ -27,14 +27,16 @@ import {
   companies,
   coverage,
 } from "./data";
+import { LiveDataPage } from "./LiveDataPage";
 import type { Company } from "./data";
 
-type View = "portfolio" | "explore" | "method";
+type View = "portfolio" | "explore" | "method" | "live";
 type DemoState = "partial" | "loading" | "empty" | "error";
 const navItems = [
   { id: "portfolio" as View, label: "My portfolio", icon: SquaresFour },
   { id: "explore" as View, label: "Explore changes", icon: ArrowsLeftRight },
   { id: "method" as View, label: "Our methodology", icon: Compass },
+  { id: "live" as View, label: "Live markets", icon: Leaf },
 ];
 
 function Logo({ version }: { version: string }) {
@@ -1298,6 +1300,8 @@ export default function App() {
             )
           ) : view === "explore" ? (
             <Explore />
+          ) : view === "live" ? (
+            <LiveDataPage />
           ) : (
             <Method />
           )}
