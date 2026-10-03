@@ -11,6 +11,7 @@ type Props = {
   companies:Candidate[]; portfolio:Portfolio|null; budget:number;
   onPlanChange:(plan:RecommendationPlan)=>void;
 };
+const collapsedCompanyLimit=6;
 
 function AllocationChart({portfolio}:{portfolio:Portfolio}) {
   const total=totalValue(portfolio);
@@ -30,6 +31,7 @@ export default function RecommendationsBuilder({baseline,risk,green,maximum,plan
   const [tolerance,setTolerance]=useState(String(plan?.tolerancePercent??10));
   const [query,setQuery]=useState(""),[error,setError]=useState("");
   const [industryOpen,setIndustryOpen]=useState(false);
+  const [showAllCompanies,setShowAllCompanies]=useState(false);
   const industryDropdown=useRef<HTMLDivElement>(null),industryTrigger=useRef<HTMLButtonElement>(null);
   const selectAll=useRef<HTMLInputElement>(null),allIndustries=useRef<HTMLInputElement>(null);
   const chosen=companies.filter(c=>plan?.selectedIds.includes(c.id));
@@ -49,18 +51,19 @@ export default function RecommendationsBuilder({baseline,risk,green,maximum,plan
   const dirty=!!plan&&(Number(tolerance)!==plan.tolerancePercent||[...focus].sort().join()!==[...plan.industries].sort().join());
   const words=query.toLowerCase().trim().split(/\s+/).filter(Boolean);
   const filtered=companies.filter(c=>words.every(word=>`${c.name} ${displayTicker(c.ticker)} ${c.keywords} ${industries.find(i=>i.id===c.industryId)?.label}`.toLowerCase().includes(word)));
+  const visibleCompanies=showAllCompanies?filtered:filtered.slice(0,collapsedCompanyLimit);
   const summary=portfolio?metrics(portfolio):null;
   const invested=portfolio?totalValue(portfolio):0;
   const toggle=(id:string)=>{if(plan)onPlanChange({...plan,selectedIds:plan.selectedIds.includes(id)?plan.selectedIds.filter(value=>value!==id):[...plan.selectedIds,id]});};
   return <div className="recommendation-builder">
     <section className="workspace-panel builder-setup" aria-labelledby="setup-heading">
-      <div className="builder-panel-heading"><span className="builder-step">01</span><div><h2 id="setup-heading">Recommendation setup</h2><p>Start with the industries you care about.</p></div></div>
+      <div className="builder-panel-heading"><span className="builder-step">01</span><div><h2 id="setup-heading">Setup</h2></div></div>
       <form onSubmit={e=>{
         e.preventDefault();
         if(!focus.length){setError("Choose at least one industry.");return;}
         if(!toleranceValid){setError("Enter a portfolio value change between −50% and +100%.");return;}
         const recommended=industryRecommendations(baseline,risk,green,maximum,focus,Number(tolerance));
-        onPlanChange({industries:[...focus],tolerancePercent:Number(tolerance),selectedIds:recommended.map(c=>c.id)});setError("");setQuery("");setIndustryOpen(false);
+        onPlanChange({industries:[...focus],tolerancePercent:Number(tolerance),selectedIds:recommended.map(c=>c.id)});setError("");setQuery("");setIndustryOpen(false);setShowAllCompanies(false);
       }}>
         <fieldset className="industry-options"><legend>Industry focus</legend>
           <div ref={industryDropdown} className="industry-dropdown">
@@ -87,26 +90,25 @@ export default function RecommendationsBuilder({baseline,risk,green,maximum,plan
     </section>
 
     <section className="workspace-panel builder-companies" aria-labelledby="companies-heading">
-      <div className="builder-panel-heading"><span className="builder-step">02</span><div><h2 id="companies-heading">Recommended companies</h2><p>Keep the companies you want in your portfolio.</p></div></div>
-      <div className="builder-company-tools"><div className="company-keyword-input"><MagnifyingGlass size={19}/><input aria-label="Search recommendations" placeholder="Search company, ticker or keyword" value={query} onChange={e=>setQuery(e.target.value)} disabled={!plan}/>{query&&<button type="button" aria-label="Clear company search" onClick={()=>setQuery("")}><X size={16}/></button>}</div>
-        {plan&&<div className="recommended-industries">{industries.filter(i=>companies.some(c=>c.industryId===i.id)).map(industry=><span key={industry.id}><i style={{background:industry.color}}/>{industry.label}</span>)}</div>}
+      <div className="builder-panel-heading"><span className="builder-step">02</span><div><h2 id="companies-heading">Recommended companies</h2></div></div>
+      <div className="builder-company-tools"><div className="company-keyword-input"><MagnifyingGlass size={19}/><input aria-label="Search recommendations" placeholder="Search company, ticker or keyword" value={query} onChange={e=>{setQuery(e.target.value);setShowAllCompanies(false);}} disabled={!plan}/>{query&&<button type="button" aria-label="Clear company search" onClick={()=>{setQuery("");setShowAllCompanies(false);}}><X size={16}/></button>}</div>
       </div>
       {!plan?<div className="builder-empty"><Sparkle size={32}/><h3>Your next portfolio starts here.</h3><p>Choose industries on the left, then generate your recommendations.</p></div>:!companies.length?<div className="builder-empty"><MagnifyingGlass size={30}/><h3>No companies match this setup.</h3><p>Try other industries, a larger budget or different Settings.</p></div>:<>
         <div className="company-selection-toolbar"><label><input ref={selectAll} type="checkbox" aria-label="Select all recommended companies" checked={chosen.length===companies.length} onChange={e=>onPlanChange({...plan,selectedIds:e.target.checked?companies.map(c=>c.id):[]})}/>Select all</label><span className="selection-status" role="status">{chosen.length} of {companies.length} selected</span></div>
-        <div className="table-scroll"><table className="builder-company-table"><thead><tr><th><span className="sr-only">Include</span></th><th>Company</th><th>E-score</th><th><InfoPopover label="P/E ratio" content={<><strong>Price-to-earnings ratio</strong><p>Share price divided by annual earnings per share. It is a valuation measure, not an environmental score or a guarantee of future returns.</p></>}>P/E</InfoPopover></th><th>Return</th></tr></thead><tbody>
-          {filtered.map(company=><tr key={company.id} className={plan.selectedIds.includes(company.id)?"company-selected":""}><td><input type="checkbox" aria-label={`Include ${company.name}`} checked={plan.selectedIds.includes(company.id)} onChange={()=>toggle(company.id)}/></td>
+        <div className="table-scroll"><table id="recommended-company-list" className="builder-company-table"><thead><tr><th><span className="sr-only">Include</span></th><th>Company / price</th><th>E-score</th><th><InfoPopover label="P/E ratio" content={<><strong>Price-to-earnings ratio</strong><p>Share price divided by annual earnings per share. It is a valuation measure, not an environmental score or a guarantee of future returns.</p></>}>P/E</InfoPopover></th><th>Return</th><th>Shares</th><th>Total / weight</th></tr></thead><tbody>
+          {visibleCompanies.map(company=>{const holding=portfolio?.holdings.find(h=>displayTicker(h.ticker)===displayTicker(company.ticker)&&h.exchange===company.exchange);return <tr key={company.id} className={plan.selectedIds.includes(company.id)?"company-selected":""}><td><input type="checkbox" aria-label={`Include ${company.name}`} checked={plan.selectedIds.includes(company.id)} onChange={()=>toggle(company.id)}/></td>
             <th scope="row"><CompanyInfo company={{...company,value:0}}/><small>{displayTicker(company.ticker)} · {industries.find(i=>i.id===company.industryId)?.label}</small><span className="builder-share-price">{unitMoney(sharePrice(company,baseline.baseCurrency)!,baseline.baseCurrency)} / share</span></th>
-            <td><span className="company-score"><Leaf size={12}/>{score(company.eScore)}</span></td><td>{company.peRatio.toFixed(1)}×</td><td>{percent(company.expectedReturn)}</td></tr>)}
+            <td><span className="company-score"><Leaf size={14}/>{score(company.eScore)}</span></td><td>{company.peRatio.toFixed(1)}×</td><td>{percent(company.expectedReturn)}</td><td className="company-units">{holding?.units??0}</td><td className="company-allocation">{money(holding?.value??0,baseline.baseCurrency)}<small>{percent(holding&&invested?holding.value/invested:0,1)}</small></td></tr>;})}
         </tbody></table></div>
+        {filtered.length>collapsedCompanyLimit&&<button type="button" className="company-list-toggle" aria-expanded={showAllCompanies} aria-controls="recommended-company-list" onClick={()=>setShowAllCompanies(show=>!show)}>{showAllCompanies?"Show fewer companies":`Show ${filtered.length-collapsedCompanyLimit} more ${filtered.length-collapsedCompanyLimit===1?"company":"companies"}`}<CaretDown size={16}/></button>}
         {!filtered.length&&<p className="builder-search-empty" role="status">No matching companies. Try another keyword.</p>}
-        <p className="builder-footnote">All recommendations start selected. Uncheck a company to update your allocation instantly.</p>
       </>}
     </section>
 
     <section className="workspace-panel builder-portfolio" aria-labelledby="live-portfolio-heading">
-      <div className="builder-panel-heading"><span className="builder-step">03</span><div><h2 id="live-portfolio-heading">Your portfolio</h2><p>Live metrics for your selected companies.</p></div><span className="live-indicator"><i/>Live</span></div>
+      <div className="builder-panel-heading"><span className="builder-step">03</span><div><h2 id="live-portfolio-heading">Your portfolio</h2></div><span className="live-indicator"><i/>Live</span></div>
       {!portfolio?<div className="builder-empty"><ChartDonut size={34}/><h3>{plan&&companies.length?"Choose companies to build a portfolio.":"See your choices come together."}</h3><p>{plan&&companies.length?"Select at least one company in the middle panel. Your allocation will update automatically.":"Your selected holdings, performance and industry allocation will appear here."}</p></div>:<>
-        <div className="live-portfolio-value"><InfoPopover label="Portfolio value" content={<><strong>Portfolio value</strong><p>{metricExplanations["Portfolio value"]}</p></>}>Portfolio value</InfoPopover><strong aria-live="polite" aria-atomic="true">{money(invested,portfolio.baseCurrency)}</strong><span>{portfolio.holdings.length} companies · {portfolio.baseCurrency}</span></div>
+        <div className="live-portfolio-value"><InfoPopover label="Portfolio value" content={<><strong>Portfolio value</strong><p>{metricExplanations["Portfolio value"]}</p></>}>Portfolio value</InfoPopover><strong aria-live="polite" aria-atomic="true">{money(invested,portfolio.baseCurrency)}</strong></div>
         <div className="live-portfolio-metrics">{[
           ["Expected return · annual",percent(summary!.expectedReturn.value),"Annual expected return"],
           ["Portfolio green score",score(summary!.greenScore.value),"Environmental score"],
@@ -114,7 +116,6 @@ export default function RecommendationsBuilder({baseline,risk,green,maximum,plan
         ].map(([key,value,label])=><div key={key}><InfoPopover label={key} content={<><strong>{label}</strong><p>{metricExplanations[key]}</p></>}>{label}</InfoPopover><strong>{value}</strong></div>)}</div>
         <div className="portfolio-budget-note"><span>Target budget <strong>{money(budget,portfolio.baseCurrency)}</strong></span><span>Unallocated <strong>{money(Math.max(0,budget-invested),portfolio.baseCurrency)}</strong></span></div>
         <h3 className="builder-subheading">Industry allocation</h3><AllocationChart portfolio={portfolio}/>
-        <h3 className="builder-subheading">Selected holdings</h3><div className="table-scroll"><table className="selected-holdings-table"><thead><tr><th>Company / price</th><th>Shares</th><th>Total / weight</th></tr></thead><tbody>{portfolio.holdings.map(holding=><tr key={holding.id}><th scope="row"><CompanyInfo company={holding}/><small>{unitMoney(holding.unitPrice!,portfolio.baseCurrency)} / share</small></th><td>{holding.units}</td><td>{money(holding.value,portfolio.baseCurrency)}<small>{percent(holding.value/invested,1)}</small></td></tr>)}</tbody></table></div>
         <p className="builder-footnote">The budget is redistributed across checked companies using whole shares. Unallocated money is excluded from these holdings and metrics.</p>
       </>}
     </section>
