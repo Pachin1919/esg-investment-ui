@@ -1,70 +1,71 @@
 import type { PortfolioStats as Stats } from "./api";
 
-const FACTORS: [string, string, string][] = [
-  ["mkt_rf", "Market", "Sensitivity to the equity market"],
-  ["smb", "Size · SMB", "Small minus big companies"],
-  ["hml", "Value · HML", "Cheap minus expensive companies"],
-  ["rmw", "Profitability · RMW", "Robust minus weak profitability"],
-  ["cma", "Investment · CMA", "Conservative minus aggressive investment"],
-  ["mom", "Momentum · MOM", "Recent winners minus losers"],
-  ["gmb", "Green · GMB", "Green minus brown companies"],
+const FACTORS: [string, string][] = [
+  ["mkt_rf", "Market beta"],
+  ["smb", "Size · SMB"],
+  ["hml", "Value · HML"],
+  ["rmw", "Profitability · RMW"],
+  ["cma", "Investment · CMA"],
+  ["mom", "Momentum · MOM"],
+  ["gmb", "Green · GMB"],
 ];
 
-const signed = (x: number | undefined) => (x === undefined ? "—" : `${x >= 0 ? "+" : ""}${x.toFixed(2)}`);
+type Row = { label: string; before: number | null; after: number | null; fmt: (x: number) => string; group?: string };
+const pct = (x: number) => `${(x * 100).toFixed(1)}%`;
+const dec = (d: number) => (x: number) => x.toFixed(d);
+const cell = (r: Row, x: number | null) => (x === null ? "—" : r.fmt(x));
 
-/** Before/after key figures of the whole portfolio: factor betas and concentration. */
-export function PortfolioStats({ before, after }: { before: Stats; after: Stats }) {
-  const rows = FACTORS.filter(([key]) => key in before.exposures || key in after.exposures);
+/** Key figures of the current and the recommended portfolio next to each other. */
+export function PortfolioStats({ before, after, volTarget }: { before: Stats; after: Stats; volTarget: number | null }) {
+  const rows: Row[] = [
+    { label: `Volatility (annual)${volTarget ? ` · target ${pct(volTarget)}` : ""}`, before: before.ann_vol, after: after.ann_vol, fmt: pct, group: "Risk and return" },
+    { label: "Model-implied return (estimate, not a forecast)", before: before.ann_ret, after: after.ann_ret, fmt: pct },
+    { label: "Greenness · g (closer to zero is greener)", before: before.g_avg, after: after.g_avg, fmt: dec(2) },
+    { label: "Positions", before: before.n_positions, after: after.n_positions, fmt: dec(0), group: "Concentration" },
+    { label: "Largest position", before: before.top_weight, after: after.top_weight, fmt: pct },
+    { label: "Effective positions (equal-weight equivalent)", before: before.effective_n, after: after.effective_n, fmt: dec(1) },
+    ...FACTORS.filter(([k]) => k in before.exposures || k in after.exposures).map(([k, label], i) => ({
+      label,
+      before: before.exposures[k] ?? null,
+      after: after.exposures[k] ?? null,
+      fmt: dec(2),
+      group: i === 0 ? "Factor exposures (portfolio beta)" : undefined,
+    })),
+  ];
   return (
     <div className="portfolio-stats">
-      <h3>Factor exposures</h3>
-      <p className="muted small">Portfolio beta to each factor. Zero means no exposure.</p>
-      <table>
+      <h3>Key figures</h3>
+      <table className="compare-table">
         <thead>
           <tr>
-            <th>Factor</th>
-            <th>Before</th>
-            <th>After</th>
+            <th>Measure</th>
+            <th>Current</th>
+            <th>Recommended</th>
             <th>Change</th>
           </tr>
         </thead>
         <tbody>
-          {rows.map(([key, label, desc]) => (
-            <tr key={key}>
+          {rows.flatMap((r) => [
+            ...(r.group
+              ? [
+                  <tr key={r.group} className="compare-group">
+                    <td colSpan={4}>{r.group}</td>
+                  </tr>,
+                ]
+              : []),
+            <tr key={r.label}>
+              <td>{r.label}</td>
+              <td>{cell(r, r.before)}</td>
+              <td className="compare-new">{cell(r, r.after)}</td>
               <td>
-                <strong>{label}</strong>
-                <br />
-                <small>{desc}</small>
+                {r.before === null || r.after === null
+                  ? "—"
+                  : `${r.after - r.before >= 0 ? "+" : "−"}${r.fmt(Math.abs(r.after - r.before))}`}
               </td>
-              <td>{signed(before.exposures[key])}</td>
-              <td>{signed(after.exposures[key])}</td>
-              <td>{signed((after.exposures[key] ?? 0) - (before.exposures[key] ?? 0))}</td>
-            </tr>
-          ))}
+            </tr>,
+          ])}
         </tbody>
       </table>
-      <h3>Concentration</h3>
-      <div className="esg-scorecard-grid">
-        <div className="esg-scorecard-card">
-          <span>Positions</span>
-          <strong>
-            {before.n_positions} → {after.n_positions}
-          </strong>
-        </div>
-        <div className="esg-scorecard-card">
-          <span>Largest position</span>
-          <strong>
-            {(before.top_weight * 100).toFixed(0)}% → {(after.top_weight * 100).toFixed(0)}%
-          </strong>
-        </div>
-        <div className="esg-scorecard-card">
-          <span>Effective positions</span>
-          <strong>
-            {before.effective_n.toFixed(1)} → {after.effective_n.toFixed(1)}
-          </strong>
-          <small className="neutral">Equal-weight equivalent</small>
-        </div>
-      </div>
     </div>
   );
 }
