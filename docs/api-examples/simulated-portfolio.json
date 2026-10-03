@@ -1,0 +1,368 @@
+{
+  "schemaVersion": "draft-0.1",
+  "isDemo": true,
+  "notice": "Proposed frontend contract. Fictional securities, forecasts and FX rates. Backend approval pending.",
+  "asOf": "2026-10-03",
+  "modelVersion": "fictional-ui-fixture-v1",
+  "data": {
+    "baselinePortfolioId": "demo-current-v1",
+    "request": {
+      "stockId": "demo-verdant-solar",
+      "amount": 10000,
+      "currency": "HKD",
+      "fundingMode": "new_money",
+      "preferences": {
+        "riskLevel": 3,
+        "greenPreference": 4
+      }
+    },
+    "baseline": {
+      "id": "demo-current-v1",
+      "baseCurrency": "HKD",
+      "valuationDate": "2026-10-03",
+      "fxBasis": {
+        "asOf": "2026-10-03",
+        "source": "fictional_demo_rates",
+        "quoteConvention": "base_currency_units_per_holding_currency_unit"
+      },
+      "greenScoreBasis": {
+        "min": 0,
+        "max": 10,
+        "aggregation": "current_value_weighted_mean",
+        "backendConfirmed": false
+      },
+      "totalHoldingValue": 94000,
+      "preferences": {
+        "riskLevel": 3,
+        "greenPreference": 4
+      },
+      "returnBasis": {
+        "startDate": "2026-10-03",
+        "endDate": "2027-10-03",
+        "horizonMonths": 12,
+        "type": "nominal_total_return",
+        "currency": "HKD",
+        "includesDividends": true,
+        "includesFees": false,
+        "includesTaxes": false
+      },
+      "metrics": {
+        "expectedReturn": {
+          "status": "available",
+          "value": 0.075106383,
+          "unit": "fraction"
+        },
+        "greenScore": {
+          "status": "available",
+          "value": 6.7340425532,
+          "unit": "score_0_to_10"
+        },
+        "volatility": {
+          "status": "unavailable",
+          "value": null,
+          "unit": "fraction",
+          "reasonCode": "NOT_SUPPORTED_IN_DRAFT_V1"
+        },
+        "greenDataCoverage": {
+          "status": "available",
+          "value": 1,
+          "unit": "fraction"
+        }
+      },
+      "holdings": [
+        {
+          "id": "demo-aurora",
+          "stockCode": "DEMO-AR",
+          "exchange": "XHKG",
+          "name": "Aurora Renewables",
+          "sector": "Utilities",
+          "currency": "HKD",
+          "currentHoldingValue": 28000,
+          "fxRateToBase": 1,
+          "holdingValueBase": 28000,
+          "weight": 0.2978723404,
+          "expectedReturn": {
+            "status": "available",
+            "value": 0.08,
+            "unit": "fraction"
+          },
+          "eScore": {
+            "status": "available",
+            "value": 8.2,
+            "unit": "score_0_to_10"
+          }
+        },
+        {
+          "id": "demo-formosa",
+          "stockCode": "DEMO-FC",
+          "exchange": "XTAI",
+          "name": "Formosa Circuits",
+          "sector": "Technology",
+          "currency": "TWD",
+          "currentHoldingValue": 96000,
+          "fxRateToBase": 0.25,
+          "holdingValueBase": 24000,
+          "weight": 0.2553191489,
+          "expectedReturn": {
+            "status": "available",
+            "value": 0.06,
+            "unit": "fraction"
+          },
+          "eScore": {
+            "status": "available",
+            "value": 6.7,
+            "unit": "score_0_to_10"
+          }
+        },
+        {
+          "id": "demo-harbour",
+          "stockCode": "DEMO-HM",
+          "exchange": "XHKG",
+          "name": "Harbour Mobility",
+          "sector": "Industrials",
+          "currency": "HKD",
+          "currentHoldingValue": 20000,
+          "fxRateToBase": 1,
+          "holdingValueBase": 20000,
+          "weight": 0.2127659574,
+          "expectedReturn": {
+            "status": "available",
+            "value": 0.07,
+            "unit": "fraction"
+          },
+          "eScore": {
+            "status": "available",
+            "value": 7.4,
+            "unit": "score_0_to_10"
+          }
+        },
+        {
+          "id": "demo-riverstone",
+          "stockCode": "DEMO-RM",
+          "exchange": "XSHG",
+          "name": "Riverstone Materials",
+          "sector": "Materials",
+          "currency": "CNY",
+          "currentHoldingValue": 20000,
+          "fxRateToBase": 1.1,
+          "holdingValueBase": 22000,
+          "weight": 0.2340425532,
+          "expectedReturn": {
+            "status": "available",
+            "value": 0.09,
+            "unit": "fraction"
+          },
+          "eScore": {
+            "status": "available",
+            "value": 4.3,
+            "unit": "score_0_to_10"
+          }
+        }
+      ]
+    },
+    "simulated": {
+      "id": "demo-simulation-v1",
+      "baseCurrency": "HKD",
+      "valuationDate": "2026-10-03",
+      "fxBasis": {
+        "asOf": "2026-10-03",
+        "source": "fictional_demo_rates",
+        "quoteConvention": "base_currency_units_per_holding_currency_unit"
+      },
+      "greenScoreBasis": {
+        "min": 0,
+        "max": 10,
+        "aggregation": "current_value_weighted_mean",
+        "backendConfirmed": false
+      },
+      "totalHoldingValue": 104000,
+      "preferences": {
+        "riskLevel": 3,
+        "greenPreference": 4
+      },
+      "returnBasis": {
+        "startDate": "2026-10-03",
+        "endDate": "2027-10-03",
+        "horizonMonths": 12,
+        "type": "nominal_total_return",
+        "currency": "HKD",
+        "includesDividends": true,
+        "includesFees": false,
+        "includesTaxes": false
+      },
+      "metrics": {
+        "expectedReturn": {
+          "status": "available",
+          "value": 0.0750961538,
+          "unit": "fraction"
+        },
+        "greenScore": {
+          "status": "available",
+          "value": 6.9326923077,
+          "unit": "score_0_to_10"
+        },
+        "volatility": {
+          "status": "unavailable",
+          "value": null,
+          "unit": "fraction",
+          "reasonCode": "NOT_SUPPORTED_IN_DRAFT_V1"
+        },
+        "greenDataCoverage": {
+          "status": "available",
+          "value": 1,
+          "unit": "fraction"
+        }
+      },
+      "holdings": [
+        {
+          "id": "demo-aurora",
+          "stockCode": "DEMO-AR",
+          "exchange": "XHKG",
+          "name": "Aurora Renewables",
+          "sector": "Utilities",
+          "currency": "HKD",
+          "currentHoldingValue": 28000,
+          "fxRateToBase": 1,
+          "holdingValueBase": 28000,
+          "weight": 0.2692307692,
+          "expectedReturn": {
+            "status": "available",
+            "value": 0.08,
+            "unit": "fraction"
+          },
+          "eScore": {
+            "status": "available",
+            "value": 8.2,
+            "unit": "score_0_to_10"
+          }
+        },
+        {
+          "id": "demo-formosa",
+          "stockCode": "DEMO-FC",
+          "exchange": "XTAI",
+          "name": "Formosa Circuits",
+          "sector": "Technology",
+          "currency": "TWD",
+          "currentHoldingValue": 96000,
+          "fxRateToBase": 0.25,
+          "holdingValueBase": 24000,
+          "weight": 0.2307692308,
+          "expectedReturn": {
+            "status": "available",
+            "value": 0.06,
+            "unit": "fraction"
+          },
+          "eScore": {
+            "status": "available",
+            "value": 6.7,
+            "unit": "score_0_to_10"
+          }
+        },
+        {
+          "id": "demo-harbour",
+          "stockCode": "DEMO-HM",
+          "exchange": "XHKG",
+          "name": "Harbour Mobility",
+          "sector": "Industrials",
+          "currency": "HKD",
+          "currentHoldingValue": 20000,
+          "fxRateToBase": 1,
+          "holdingValueBase": 20000,
+          "weight": 0.1923076923,
+          "expectedReturn": {
+            "status": "available",
+            "value": 0.07,
+            "unit": "fraction"
+          },
+          "eScore": {
+            "status": "available",
+            "value": 7.4,
+            "unit": "score_0_to_10"
+          }
+        },
+        {
+          "id": "demo-riverstone",
+          "stockCode": "DEMO-RM",
+          "exchange": "XSHG",
+          "name": "Riverstone Materials",
+          "sector": "Materials",
+          "currency": "CNY",
+          "currentHoldingValue": 20000,
+          "fxRateToBase": 1.1,
+          "holdingValueBase": 22000,
+          "weight": 0.2115384615,
+          "expectedReturn": {
+            "status": "available",
+            "value": 0.09,
+            "unit": "fraction"
+          },
+          "eScore": {
+            "status": "available",
+            "value": 4.3,
+            "unit": "score_0_to_10"
+          }
+        },
+        {
+          "id": "demo-verdant-solar",
+          "stockCode": "DEMO-VS",
+          "exchange": "XHKG",
+          "name": "Verdant Solar",
+          "sector": "Utilities",
+          "currency": "HKD",
+          "currentHoldingValue": 10000,
+          "fxRateToBase": 1,
+          "holdingValueBase": 10000,
+          "weight": 0.0961538462,
+          "expectedReturn": {
+            "status": "available",
+            "value": 0.075,
+            "unit": "fraction"
+          },
+          "eScore": {
+            "status": "available",
+            "value": 8.8,
+            "unit": "score_0_to_10"
+          }
+        }
+      ]
+    },
+    "comparison": {
+      "totalHoldingValue": {
+        "before": 94000,
+        "after": 104000,
+        "delta": 10000,
+        "currency": "HKD"
+      },
+      "expectedReturn": {
+        "before": 0.075106383,
+        "after": 0.0750961538,
+        "delta": -0.0000102292,
+        "unit": "fraction"
+      },
+      "greenScore": {
+        "before": 6.7340425532,
+        "after": 6.9326923077,
+        "delta": 0.1986497545,
+        "unit": "score_0_to_10"
+      },
+      "volatility": {
+        "status": "unavailable",
+        "before": null,
+        "after": null,
+        "delta": null,
+        "unit": "fraction",
+        "reasonCode": "NOT_SUPPORTED_IN_DRAFT_V1"
+      }
+    },
+    "calculationAssumptions": {
+      "existingPricesAndFXUnchanged": true,
+      "additionalMoneyFullyInvested": true,
+      "feesIncluded": false,
+      "taxesIncluded": false,
+      "lotSizeConstraintsApplied": false,
+      "expectedReturnsAndScoresFixedDuringMockSimulation": true
+    },
+    "explanation": "Adding HKD 10,000 increases portfolio value from HKD 94,000 to HKD 104,000. Weights change; the green score and expected return change by value-weighting fixed fictional asset metrics. This is not a backend recalculation or an investment recommendation."
+  },
+  "warnings": []
+}

@@ -1,65 +1,68 @@
-# esg-investment-ui
-UI and frontend interactions for ESG Indicators for Retail Investment — hackathon project.
+# Verdant · Green-value Investment Analysis
 
-## Two interactive UI demos
+面向投资者的绿色值投资分析原型：理解公司环保表现与投资收益预期之间的关系，并模拟组合调整。
 
-React + TypeScript + Vite frontend with two distinct layouts:
+## 页面与核心流程
 
-| Version | Visual direction | Local route |
-| --- | --- | --- |
-| Clarity blue | White and pale blue; portfolio analysis workspace | `/?v=blue` |
-| Sage green | White and pale green; guided investor experience | `/?v=green` |
+- `/`：绿色 Landing Page，介绍环境表现如何可能影响成本、转型风险与投资收益预期。
+- `/app`：蓝色分析工作台，展示组合指标、股票候选与模拟比较。
+- 核心流程：导入持仓 → 设置偏好 → 查看股票推荐 → 模拟投资 → 比较新旧组合。
+- 兼容旧演示地址：`/?v=blue` 进入样例工作台，`/?v=green` 显示首页。
 
-**Verdant is a provisional demo name chosen during prototyping, not a confirmed team brand.**
+## 本地运行
 
-### Run locally
+使用 Node.js 22.12+：
 
-Use Node.js 22.12+ (validated with Node.js 24).
-
-```sh
-git clone https://github.com/Pachin1919/esg-investment-ui.git
-cd esg-investment-ui
+```powershell
 npm ci
 npm run dev
 ```
 
-Open <http://127.0.0.1:4319/?v=blue> or <http://127.0.0.1:4319/?v=green>. The top switch changes versions. On Windows, `start-demo.cmd` also starts the local server. Localhost links work only on the computer running the app.
+当前终端已经位于项目根目录时，无需再次执行 `cd esg-investment-ui`。打开 <http://127.0.0.1:4319/>。Windows 也可运行 `.\start-demo.cmd`。
 
-```sh
+```powershell
 npm run build
 npm run preview
 ```
 
-### Implemented interactions
+## 已实现
 
-- Portfolio search and sorting; company details with keyboard focus restoration.
-- Environmental score, industry importance, Carbon / Walk / Talk explanations.
-- Independent allocation draft with 100% validation and before/after comparison.
-- Empty, loading, partial-data and error states; sample JSON export.
-- Responsive layouts and reduced-motion support.
+- CSV 内容解析、逐行校验、导入预览与报告币种设置。
+- 使用当前持仓市值计算权重；支持报告已归一化币种及手工提供转换汇率。
+- 五档风险承受度，按绿、蓝、黄、橙、红可视化；五档绿色偏好。
+- 组合预期收益、绿色评分、可选波动率的指标卡。
+- 公司详情突出 Expected return 和 E-score。
+- 股票候选搜索、正确带入所选公司、按金额或演示单位数模拟。
+- 新增资金模式，以及指定减持金额并可补充资金的再平衡模式。
+- 新旧组合金额、收益、绿色评分、数据覆盖率和持仓权重比较。
+- 本地保存持仓、偏好和模拟草稿，支持导出与清除。
+- 键盘可操作对话框、响应式布局和减少动态效果。
 
-All companies and metrics are fictional. Missing data remains unavailable. Allocation comparisons run locally; no live backend, expected-return forecasts, portfolio optimisation, trading or full ESG rating is provided. The research hypothesis that greenness relates to returns has not been validated by this frontend.
+## 数据边界
 
-### Previews
+真实 API 和后端计算契约尚未提供。导入 CSV 后，实际金额与权重可用，但预期收益、环境评分和波动率保持不可用。
 
-**Clarity blue**
+Try demo 使用明确标注的虚构公司数据。模拟中的收益与评分仅按固定虚构值做本地加权演示，不运行真实预测或优化模型，不声称已经按风险偏好生成有效推荐。
 
-![Clarity blue portfolio workspace](docs/previews/blue-preview.png)
+最新 Q&A 明确风险与绿色偏好均可使用 1–5 档；5 分别表示更高风险承受度和更强绿色偏好。颜色不是机构信用评级或资产风险结论。
 
-**Sage green**
+环境评分越高表示越环保，不代表收益更高或投资更好。最终评分范围与组合聚合方法待确认；演示使用 0–10。年预期收益为拟采用展示方式，详细口径仍待后端确认。波动率尚未提供，UI 不伪造该数值。
 
-![Sage green guided portfolio](docs/previews/green-preview.png)
+本轮不使用 E_weight，也不使用依赖它的旧 greenness 公式。没有历史趋势、行业对比或组合预测图。
 
-### Project structure
+本地导入数据与模拟草稿保存于浏览器 localStorage，可使用 Clear portfolio 清除。没有账户连接、交易或支付。
+
+## 结构
 
 ```text
-src/App.tsx          Two layouts, company detail and allocation flows
-src/data.ts         Fictional fixtures and frontend capability definitions
-src/styles.css      Colours, typography, responsive layouts and motion
-docs/demo-guide.md  Detailed Chinese demo and implementation guide
-LOVABLE_HANDOFF.md  Instructions for continuing visual work in Lovable
+src/App.tsx          绿色首页、首页与工作台路由切换
+src/Workbench.tsx    导入、偏好、指标、推荐、公司详情与模拟流程
+src/portfolio.ts     CSV 解析、币种归一化、样例与本地金额/权重演示
+src/styles.css      原视觉系统与基础布局
+src/analysis.css    分析页面、风险配色、可读性和响应式补充
+docs/api-examples/  暂定契约、导入样例和虚构 JSON
 ```
 
-The frontend view model is not a confirmed backend API contract. Keep a future API adapter separate from the UI. This repository is not automatically connected to Lovable.
+技术栈：React 19、TypeScript、Vite、Phosphor Icons、原生 CSS。
 
-Validation: TypeScript and production build passed; key interactions checked in a browser; both versions checked at 320, 390, 768 and 1440 px. Dependencies, build output and local browser traces are excluded from Git.
+参见 [演示指南](docs/demo-guide.md) 与 [暂定接口和样例](docs/api-examples/README.md)。

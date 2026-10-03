@@ -1,0 +1,5 @@
+stock_code,exchange,company_name,current_holding_value,currency,as_of_date
+DEMO-AR,XHKG,Aurora Renewables,28000,HKD,2026-10-03
+DEMO-FC,XTAI,Formosa Circuits,96000,TWD,2026-10-03
+DEMO-HM,XHKG,Harbour Mobility,20000,HKD,2026-10-03
+DEMO-RM,XSHG,Riverstone Materials,20000,CNY,2026-10-03

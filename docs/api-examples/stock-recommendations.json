@@ -1,0 +1,82 @@
+{
+  "schemaVersion": "draft-0.1",
+  "isDemo": true,
+  "notice": "Proposed frontend contract. Fictional securities, forecasts and FX rates. Backend approval pending.",
+  "asOf": "2026-10-03",
+  "modelVersion": "fictional-ui-fixture-v1",
+  "data": {
+    "basedOnPortfolioId": "demo-current-v1",
+    "preferences": {
+      "riskLevel": 3,
+      "greenPreference": 4
+    },
+    "returnBasis": {
+      "startDate": "2026-10-03",
+      "endDate": "2027-10-03",
+      "horizonMonths": 12,
+      "type": "nominal_total_return",
+      "currency": "HKD",
+      "includesDividends": true,
+      "includesFees": false,
+      "includesTaxes": false
+    },
+    "recommendations": [
+      {
+        "id": "demo-verdant-solar",
+        "stockCode": "DEMO-VS",
+        "exchange": "XHKG",
+        "name": "Verdant Solar",
+        "sector": "Utilities",
+        "currency": "HKD",
+        "expectedReturn": {
+          "status": "available",
+          "value": 0.075,
+          "unit": "fraction"
+        },
+        "eScore": {
+          "status": "available",
+          "value": 8.8,
+          "unit": "score_0_to_10"
+        },
+        "rank": 1,
+        "riskAssessment": {
+          "status": "unavailable",
+          "reasonCode": "NO_QUANTITATIVE_RISK_MODEL_IN_MOCK"
+        },
+        "reasons": [
+          "Its fictional E-score is above the current portfolio average.",
+          "This illustrative candidate reflects a high green preference; the mock does not validate risk suitability."
+        ]
+      },
+      {
+        "id": "demo-seabreeze",
+        "stockCode": "DEMO-SS",
+        "exchange": "XTAI",
+        "name": "Seabreeze Systems",
+        "sector": "Technology",
+        "currency": "TWD",
+        "expectedReturn": {
+          "status": "available",
+          "value": 0.07,
+          "unit": "fraction"
+        },
+        "eScore": {
+          "status": "available",
+          "value": 8.5,
+          "unit": "score_0_to_10"
+        },
+        "rank": 2,
+        "riskAssessment": {
+          "status": "unavailable",
+          "reasonCode": "NO_QUANTITATIVE_RISK_MODEL_IN_MOCK"
+        },
+        "reasons": [
+          "Its fictional E-score is above the current portfolio average.",
+          "This is an alternative illustrative candidate, not a validated model ranking."
+        ]
+      }
+    ],
+    "rankingStatus": "illustrative_only"
+  },
+  "warnings": []
+}
