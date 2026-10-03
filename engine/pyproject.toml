@@ -10,6 +10,7 @@ dependencies = [
     "pyarrow>=15",
     "statsmodels>=0.14",
     "scipy>=1.12",
+    "cvxpy>=1.5",
     "yfinance>=0.2.40",
     "requests>=2.31",
     "duckdb>=1.0",
