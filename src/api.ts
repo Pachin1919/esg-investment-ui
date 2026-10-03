@@ -136,7 +136,7 @@ export type Recommendation = {
   before: PortfolioStats;
   after: PortfolioStats;
   trades: { firm_id: string; w_current: number; w_target: number; dw: number; capital_delta: number; side: string }[];
-  unmodeled: string[];
+  unmodeled: { firm_id: string; capital: number; weight: number }[];
 };
 
 export async function recommendPortfolio(body: {

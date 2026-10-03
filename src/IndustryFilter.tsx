@@ -94,7 +94,7 @@ export function IndustryFilter({
           </details>
         );
       })}
-      <small>Applied exactly as ticked. Holdings outside the selection are proposed for sale.</small>
+      <small>Applied exactly as ticked. Only the selected industries are bought or rebalanced; holdings outside them are left untouched.</small>
     </div>
   );
 }

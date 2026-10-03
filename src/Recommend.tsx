@@ -74,6 +74,7 @@ export function Recommend({
     setLoading(false);
   };
 
+  const kept = (result?.trades ?? []).filter((t) => t.side.startsWith("hold (outside"));
   const trades = (result?.trades ?? [])
     .filter((t) => Math.abs(t.dw) >= MIN_TRADE)
     .sort((a, b) => Math.abs(b.capital_delta) - Math.abs(a.capital_delta));
@@ -185,7 +186,7 @@ export function Recommend({
                         </td>
                         <td>
                           <span className={`badge ${t.side === "buy" ? "mint" : "amber"}`}>
-                            {t.side === "buy" ? "Buy" : t.side.includes("outside") ? "Sell · outside filter" : "Sell"}
+                            {t.side === "buy" ? "Buy" : "Sell"}
                           </span>
                         </td>
                         <td>{money(t.capital_delta)}</td>
@@ -197,9 +198,14 @@ export function Recommend({
                   </tbody>
                 </table>
               </div>
+              {kept.length > 0 && (
+                <p className="muted small">
+                  Kept unchanged (outside the selected industries): {kept.map((t) => names.get(t.firm_id)?.name ?? t.firm_id).join(", ")}
+                </p>
+              )}
               {result.unmodeled.length > 0 && (
                 <p className="muted small">
-                  Kept unchanged (no return history in the model): {result.unmodeled.join(", ")}
+                  Kept unchanged (no return history in the model): {result.unmodeled.map((u) => u.firm_id).join(", ")}
                 </p>
               )}
             </>
