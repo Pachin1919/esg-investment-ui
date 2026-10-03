@@ -129,3 +129,26 @@ def test_recommend_all_markets_trades_in_both(tmp_path):
 def test_recommend_all_markets_needs_fx(tmp_path):
     code, d = _post(_store(tmp_path, with_fx=False), holdings={"F000.HK": 100.0}, market="all")
     assert code == 503 and "TWDHKD" in d["detail"]
+
+
+def test_industry_filter_and_filter_tree_across_markets(tmp_path):
+    from esgx.api import portfolio_routes as pr
+
+    store = _store(tmp_path)
+    for name, sfx, n in (("universe_hsi", "HK", 12), ("universe_twse", "TW", 20)):
+        pd.DataFrame({"firm_id": [f"F{i:03d}.{sfx}" for i in range(n)], "name": "Firm", "sector": "Tech",
+                      "industry": ["Software" if i % 2 else "Chips" for i in range(n)], "country": sfx}
+                     ).to_parquet(store.raw / f"{name}.parquet")
+    code, d = _post(store, holdings={"F000.HK": 6000.0, "F001.TW": 4000.0}, market="all", kappa=0.0,
+                    filters={"include_industries": ["Software"]})
+    assert code == 200, d
+    assert d["screen"]["method"] == "filter" and d["screen"]["n_candidates"] == 16  # 6 HK + 10 TW
+    row = {t["firm_id"]: t for t in d["trades"]}
+    assert row["F000.HK"]["side"] == "hold (outside filter)"  # Chips holding kept, not sold
+    assert {t["market"] for t in d["trades"] if t["side"] == "buy"} <= {"hk", "tw"}
+    app.dependency_overrides[pr._store] = lambda: store
+    try:
+        tree = TestClient(app).get("/api/portfolio/filters", params={"market": "all"}).json()
+    finally:
+        app.dependency_overrides.clear()
+    assert tree["n_firms"] == 32

@@ -22,7 +22,7 @@ from esgx.api.store import DataStore, records
 from esgx.ingest.fx import BASE_CURRENCY, pair_for
 from esgx.portfolio.inputs import ModelInputs, combine_inputs, market_inputs, to_base_currency
 from esgx.portfolio.recommend import recommend
-from esgx.portfolio.screen import screen_universe
+from esgx.portfolio.screen import PreferenceFilter, filter_options, screen_filter, screen_universe
 from esgx.schema import to_month
 
 router = APIRouter(prefix="/api")
@@ -46,6 +46,7 @@ class RecommendRequest(BaseModel):
     vol_target: float | None = Field(None, gt=0.0, le=1.0)
     g_target: float | None = Field(None, gt=0.0, lt=1.0)
     preferences: str | None = None
+    filters: PreferenceFilter | None = None  # deterministic screen; wins over `preferences`, keeps holdings outside it
     kappa: float = Field(0.02, ge=0.0)
     w_max: float = Field(0.15, gt=0.0, le=1.0)
     market: Literal["hk", "tw", "us", "all"] = "hk"
@@ -72,6 +73,19 @@ def _inputs(store: DataStore, market: str, convert: bool) -> tuple[ModelInputs, 
     return inp, mktcap
 
 
+@router.get("/portfolio/filters")
+def portfolio_filters(store: Store, market: str = "hk") -> dict:
+    """Sector -> industry values (with firm counts) of the firms the optimizer can trade in a
+    market ("all" pools Hong Kong and Taiwan): the choices for `RecommendRequest.filters`."""
+    frames = [store.prices(m) for m in (ALL_MARKETS if market == "all" else (market,))]
+    if any(f.empty for f in frames):
+        raise HTTPException(503, f"monthly prices for market {market!r} not available yet")
+    prices = pd.concat(frames)
+    firms = store.firms()
+    priced = firms[firms["firm_id"].isin(prices["firm_id"].unique())]
+    return {"market": market, "n_firms": int(priced["firm_id"].nunique()), "sectors": filter_options(priced)}
+
+
 @router.post("/portfolio/recommend")
 def recommend_portfolio(req: RecommendRequest, store: Store) -> dict:
     pooled = req.market == "all"
@@ -84,9 +98,11 @@ def recommend_portfolio(req: RecommendRequest, store: Store) -> dict:
     f_mean, f_cov = inp.moments()
     market_of = {f: m for m, part in reversed(parts.items()) for f in part.betas.index}
     screen, universe = None, None
-    if req.preferences and req.preferences.strip():
+    has_text = bool(req.preferences and req.preferences.strip())
+    if req.filters is not None or has_text:
         firms = store.firms()
-        universe, screen = screen_universe(req.preferences, firms, mktcap)
+        universe, screen = (screen_filter(req.filters, firms, mktcap) if req.filters is not None
+                            else screen_universe(req.preferences, firms, mktcap))
         if not universe:
             raise HTTPException(400, "the preference filter leaves no candidate assets; "
                                      f"interpretation: {screen['spec']}")
@@ -95,7 +111,8 @@ def recommend_portfolio(req: RecommendRequest, store: Store) -> dict:
                         risk_score=req.risk_score, green_score=req.green_score,
                         kappa=req.kappa, max_new_capital=req.max_new_capital,
                         vol_target=req.vol_target, g_target=req.g_target,
-                        w_max=req.w_max, universe=universe)
+                        w_max=req.w_max, universe=universe,
+                        keep_outside=req.filters is not None)
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
     return {
