@@ -91,6 +91,10 @@ def format_company_for_ui(
     initials = extract_initials(name, ticker)
     note = str(row.get("note") or build_company_note(row))
 
+    gap = to_float_or_none(row.get("gap"))
+    if gap is None and talk is not None and walk is not None:
+        gap = round(talk - walk, 1)
+
     return {
         "id": firm_id.lower().replace(".", "-"),
         "name": name,
@@ -103,6 +107,9 @@ def format_company_for_ui(
         "carbon": carbon,
         "walk": walk,
         "talk": talk,
+        "gap": gap,
+        "greenwasher": bool(row.get("greenwasher") == 1),
+        "greenhusher": bool(row.get("greenhusher") == 1),
         "color": color,
         "initials": initials,
         "note": note,

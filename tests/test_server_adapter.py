@@ -63,3 +63,21 @@ def test_api_portfolio_analyze(client):
     assert res["total_allocation"] == 100.0
     assert res["coverage_pct"] == 100
     assert res["portfolio_greenness"] is not None
+
+
+def test_api_sample_csv(client):
+    r = client.get("/api/portfolio/sample-csv")
+    assert r.status_code == 200
+    assert "ticker,allocation" in r.text
+    assert "0002.HK" in r.text
+
+
+def test_api_upload_csv(client):
+    csv_text = "ticker,allocation\n0002.HK,40\n0066.HK,60\n"
+    r = client.post("/api/portfolio/upload-csv", json={"csv_text": csv_text})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["total_allocation"] == 100.0
+    assert len(data["companies"]) == 2
+    assert data["companies"][0]["ticker"] == "0002.HK"
+    assert data["companies"][0]["allocation"] == 40.0

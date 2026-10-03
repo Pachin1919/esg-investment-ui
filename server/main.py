@@ -6,6 +6,9 @@ and formats it directly for the React / TypeScript UI via server.adapter.
 
 from __future__ import annotations
 
+import io
+import csv
+import re
 import os
 import sys
 from pathlib import Path
@@ -18,6 +21,7 @@ for p in (ROOT / "engine", ROOT / "engine" / "greenwash"):
         sys.path.insert(0, str(p))
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import pandas as pd
@@ -47,6 +51,10 @@ class PortfolioRequest(BaseModel):
     allocations: dict[str, float]  # company id -> allocation percent (e.g. {"0002-hk": 25.0, ...})
 
 
+class CsvUploadRequest(BaseModel):
+    csv_text: str
+
+
 def load_latest_dataset() -> pd.DataFrame:
     """Load latest scored companies from processed or outputs directories, or fallback to HK universe."""
     scores_file = OUTPUT_DIR / "main_scores.csv"
@@ -71,11 +79,7 @@ def load_latest_dataset() -> pd.DataFrame:
             df = df.merge(univ[["firm_id", "name", "ticker"]], on="firm_id", how="left")
         return df
 
-    # Otherwise load HK universe and generate initial baseline scores
-    from esgx.ingest.universe_hk import load_universe_hk
-    firms = load_universe_hk()
-    # Baseline representative demo scoring based on HK companies
-    defaults = []
+    # Otherwise load baseline representative demo scoring based on real HK/TW companies
     sample_metrics = [
         {"firm_id": "0002.HK", "name": "CLP Holdings", "ticker": "0002.HK", "sector": "Utilities", "region": "Hong Kong", "e_score": 8.2, "e_weight": 45, "carbon": 8.5, "walk": 7.8, "talk": 8.1, "greenwasher": 0, "greenhusher": 0, "gap": 0.3},
         {"firm_id": "0066.HK", "name": "MTR Corporation", "ticker": "0066.HK", "sector": "Industrials", "region": "Hong Kong", "e_score": 7.4, "e_weight": 40, "carbon": 7.2, "walk": 7.6, "talk": 7.8, "greenwasher": 0, "greenhusher": 0, "gap": 0.2},
@@ -103,6 +107,7 @@ def health() -> dict[str, Any]:
             "portfolioScore": True,
             "recalculation": True,
             "returnForecast": False,  # Hypothesis under research
+            "csvUpload": True,
         },
     }
 
@@ -123,7 +128,6 @@ def get_company_detail(company_id: str) -> dict[str, Any]:
     if not comp:
         raise HTTPException(status_code=404, detail=f"Company '{company_id}' not found")
     
-    # Calculate PST Greenness
     score = comp["score"]
     materiality = comp["materiality"]
     g = float(greenness(score, materiality)) if score is not None else None
@@ -137,7 +141,9 @@ def get_company_detail(company_id: str) -> dict[str, Any]:
             "carbon_intensity_rank": comp["carbon"],
             "walk_action_rank": comp["walk"],
             "talk_disclosure_rank": comp["talk"],
-            "gap": round(comp["talk"] - comp["walk"], 2) if comp["talk"] is not None and comp["walk"] is not None else None,
+            "gap": comp.get("gap"),
+            "greenwasher": comp.get("greenwasher", False),
+            "greenhusher": comp.get("greenhusher", False),
         },
         "methodology": {
             "formula": "g = -(10 - E_score) * E_weight / 100",
@@ -149,7 +155,7 @@ def get_company_detail(company_id: str) -> dict[str, Any]:
 
 @app.post("/api/portfolio/analyze")
 def analyze_portfolio(req: PortfolioRequest) -> dict[str, Any]:
-    """Perform real-time portfolio greenness and coverage calculation for arbitrary allocations."""
+    """Perform real-time portfolio greenness, carbon, and greenwash risk calculation."""
     companies = {c["id"]: c for c in get_companies()}
     allocs = req.allocations
 
@@ -163,6 +169,7 @@ def analyze_portfolio(req: PortfolioRequest) -> dict[str, Any]:
     weighted_carbon = 0.0
     weighted_walk = 0.0
     weighted_talk = 0.0
+    greenwash_weight = 0.0
 
     sector_weights: dict[str, float] = {}
 
@@ -172,6 +179,9 @@ def analyze_portfolio(req: PortfolioRequest) -> dict[str, Any]:
             continue
         sector = comp["sector"]
         sector_weights[sector] = sector_weights.get(sector, 0.0) + w
+
+        if comp.get("greenwasher"):
+            greenwash_weight += w
 
         if comp["score"] is not None:
             covered_weight += w
@@ -197,7 +207,132 @@ def analyze_portfolio(req: PortfolioRequest) -> dict[str, Any]:
             "walk": round(weighted_walk, 2) if coverage_pct > 0 else None,
             "talk": round(weighted_talk, 2) if coverage_pct > 0 else None,
         },
+        "greenwash_flagged_allocation": round(greenwash_weight, 2),
         "sector_allocation": {k: round(v, 2) for k, v in sector_weights.items()},
+    }
+
+
+def normalize_ticker(raw: str) -> str:
+    """Normalize input ticker string to standard format (e.g. '2' -> '0002.HK')."""
+    clean = raw.strip().upper()
+    if clean.isdigit():
+        return f"{int(clean):04d}.HK"
+    if clean.endswith(".HK") and clean[:-3].isdigit():
+        return f"{int(clean[:-3]):04d}.HK"
+    return clean
+
+
+@app.get("/api/portfolio/sample-csv", response_class=PlainTextResponse)
+def get_sample_csv() -> str:
+    """Return downloadable template CSV for portfolio upload."""
+    sample = (
+        "ticker,allocation\n"
+        "0002.HK,28\n"
+        "0066.HK,20\n"
+        "2330.TW,24\n"
+        "0857.HK,16\n"
+        "0992.HK,12\n"
+    )
+    return sample
+
+
+@app.post("/api/portfolio/upload-csv")
+def upload_portfolio_csv(req: CsvUploadRequest) -> dict[str, Any]:
+    """Parse an uploaded CSV of portfolio holdings and match against universe and emissions database."""
+    lines = [line.strip() for line in req.csv_text.strip().splitlines() if line.strip()]
+    if not lines:
+        raise HTTPException(status_code=400, detail="Uploaded CSV file is empty.")
+
+    reader = csv.reader(lines)
+    header = next(reader, None)
+    if not header:
+        raise HTTPException(status_code=400, detail="CSV does not contain header or data.")
+
+    # Locate ticker and weight columns
+    ticker_col = 0
+    weight_col = 1
+    has_header = False
+
+    for idx, col_name in enumerate(header):
+        lower = col_name.strip().lower()
+        if lower in {"ticker", "symbol", "code", "firm_id", "stock"}:
+            ticker_col = idx
+            has_header = True
+        elif lower in {"allocation", "weight", "pct", "percent", "shares", "value", "market_value"}:
+            weight_col = idx
+            has_header = True
+
+    data_rows = []
+    # If the first row wasn't headers, treat it as data
+    rows_to_parse = reader if has_header else [header] + list(reader)
+
+    for row in rows_to_parse:
+        if len(row) <= max(ticker_col, weight_col):
+            continue
+        raw_tick = row[ticker_col].strip()
+        raw_wt = row[weight_col].strip().replace("%", "").replace(",", "")
+        if not raw_tick:
+            continue
+        try:
+            wt = float(raw_wt)
+            if wt > 0:
+                data_rows.append((normalize_ticker(raw_tick), wt))
+        except ValueError:
+            continue
+
+    if not data_rows:
+        raise HTTPException(status_code=400, detail="No valid ticker and weight rows could be parsed from CSV.")
+
+    total_wt = sum(wt for _, wt in data_rows)
+    normalized_weights = [round((wt / total_wt) * 100.0, 1) for _, wt in data_rows]
+    # Ensure exact 100.0% sum
+    diff = 100.0 - sum(normalized_weights)
+    if diff != 0 and normalized_weights:
+        normalized_weights[0] = round(normalized_weights[0] + diff, 1)
+
+    # Match tickers against latest scored dataset
+    db = load_latest_dataset()
+    db_by_ticker = {str(r.get("ticker", "")).upper(): r for _, r in db.iterrows()}
+    db_by_id = {str(r.get("firm_id", "")).upper(): r for _, r in db.iterrows()}
+
+    companies = []
+    unmatched = []
+
+    for i, (tick, alloc) in enumerate(data_rows):
+        matched_row = db_by_ticker.get(tick)
+        if matched_row is None:
+            matched_row = db_by_id.get(tick)
+        if matched_row is not None:
+            comp_dict = dict(matched_row)
+            comp_dict["allocation"] = normalized_weights[i]
+            companies.append(format_company_for_ui(comp_dict, index=i, default_allocation=normalized_weights[i]))
+        else:
+            # Unmatched firm: retain in portfolio with score=None so coverage is transparent
+            unmatched.append(tick)
+            synthetic_row = {
+                "firm_id": tick,
+                "name": tick,
+                "ticker": tick,
+                "sector": "Other",
+                "region": "Hong Kong" if ".HK" in tick else "Global",
+                "allocation": normalized_weights[i],
+                "e_score": None,
+                "e_weight": 25,
+                "carbon": None,
+                "walk": None,
+                "talk": None,
+                "note": "Company not yet covered in our emissions and filing disclosure database.",
+            }
+            companies.append(format_company_for_ui(synthetic_row, index=i, default_allocation=normalized_weights[i]))
+
+    covered_sum = sum(c["allocation"] for c in companies if c["score"] is not None)
+
+    return {
+        "companies": companies,
+        "total_allocation": 100.0,
+        "count": len(companies),
+        "unmatched_tickers": unmatched,
+        "coverage_pct": round(covered_sum),
     }
 
 
