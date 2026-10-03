@@ -1416,6 +1416,7 @@ export default function App() {
   const [notice, setNotice] = useState("");
   const [portfolio, setPortfolio] = useState<Company[]>(companies);
   const [isLive, setIsLive] = useState(false);
+  const [market, setMarket] = useState<"hk" | "tw">("hk");
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
 
   useEffect(() => {
@@ -1425,7 +1426,7 @@ export default function App() {
         const health = await fetchHealth();
         if (health && (health.status === "healthy" || health.status === "ok")) {
           setIsLive(true);
-          const liveCompanies = await fetchCompanies();
+          const liveCompanies = await fetchCompanies(market);
           if (mounted && liveCompanies && liveCompanies.length > 0) {
             setPortfolio(liveCompanies);
           }
@@ -1438,7 +1439,7 @@ export default function App() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [market]);
 
   const handleUploadSuccess = (uploadedCompanies: Company[]) => {
     setPortfolio(uploadedCompanies);
@@ -1540,8 +1541,27 @@ export default function App() {
             02 · Sage green
           </button>
         </div>
+        <div
+          className="version-switch"
+          role="group"
+          aria-label="Choose market"
+          title="Market shown when the live engine answers (fixtures stay Hong Kong)"
+        >
+          <button
+            aria-pressed={market === "hk"}
+            onClick={() => setMarket("hk")}
+          >
+            Hong Kong
+          </button>
+          <button
+            aria-pressed={market === "tw"}
+            onClick={() => setMarket("tw")}
+          >
+            Taiwan
+          </button>
+        </div>
         <span className="concept-note">
-          {isLive ? "Live Quantitative Engine · HK/China Universe" : "Fictional data · Interactive prototype"}
+          {isLive ? `Live Quantitative Engine · ${market === "hk" ? "HK/China" : "Taiwan"} Universe` : "Fictional data · Interactive prototype"}
         </span>
       </div>
       {version === "blue" ? (
