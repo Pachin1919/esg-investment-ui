@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { CaretDown, DownloadSimple } from "@phosphor-icons/react";
 
 /** One export button for the comparison tables; each entry downloads one table as CSV. */
-export default function ExportTablesMenu({ disabled, items }: { disabled: boolean; items: { label: string; onExport: () => void }[] }) {
+export default function ExportTablesMenu({ disabled, items }: { disabled: boolean; items: { label: string; detail?: string; onExport: () => void }[] }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null), trigger = useRef<HTMLButtonElement>(null);
   useEffect(() => {
