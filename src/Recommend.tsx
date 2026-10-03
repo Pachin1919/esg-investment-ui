@@ -4,6 +4,7 @@ import type { Company } from "./data";
 import { recommendPortfolio } from "./api";
 import type { Recommendation } from "./api";
 import { IndustryFilter } from "./IndustryFilter";
+import { PortfolioStats } from "./PortfolioStats";
 
 const MIN_TRADE = 0.001;
 
@@ -198,6 +199,7 @@ export function Recommend({
                   </tbody>
                 </table>
               </div>
+              <PortfolioStats before={result.before} after={result.after} />
               {kept.length > 0 && (
                 <p className="muted small">
                   Kept unchanged (outside the selected industries): {kept.map((t) => names.get(t.firm_id)?.name ?? t.firm_id).join(", ")}
