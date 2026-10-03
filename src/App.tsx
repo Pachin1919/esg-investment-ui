@@ -17,17 +17,26 @@ import {
   SlidersHorizontal,
   Sparkle,
   SquaresFour,
+  UploadSimple,
   WarningCircle,
   X,
 } from "@phosphor-icons/react";
 import {
   alternative,
-  baseline,
   capabilities,
   companies,
   coverage,
 } from "./data";
 import type { Company } from "./data";
+import {
+  analyzePortfolioApi,
+  downloadCsvFile,
+  fetchCompanies,
+  fetchHealth,
+  fetchSampleCsv,
+  uploadPortfolioCsv,
+} from "./api";
+import type { PortfolioAnalysis } from "./api";
 
 type View = "portfolio" | "explore" | "method";
 type DemoState = "partial" | "loading" | "empty" | "error";
@@ -130,17 +139,20 @@ function Modal({
 }
 
 function AllocationRing({
-  weights = baseline,
+  weights,
+  companiesList = companies,
   large = false,
 }: {
   weights?: number[];
+  companiesList?: Company[];
   large?: boolean;
 }) {
+  const w = weights ?? companiesList.map((c) => c.allocation);
   let accumulated = 0;
-  const stops = companies
+  const stops = companiesList
     .map((c, i) => {
       const from = accumulated;
-      accumulated += weights[i];
+      accumulated += (w[i] ?? 0);
       return `${c.color} ${from}% ${accumulated}%`;
     })
     .join(",");
@@ -149,18 +161,24 @@ function AllocationRing({
       className={`allocation-ring ${large ? "large" : ""}`}
       style={{ background: `conic-gradient(from -90deg, ${stops})` }}
       role="img"
-      aria-label={`Portfolio allocation: ${companies.map((c, i) => `${c.name} ${weights[i]}%`).join(", ")}`}
+      aria-label={`Portfolio allocation: ${companiesList.map((c, i) => `${c.name} ${w[i] ?? 0}%`).join(", ")}`}
     >
       <div className="ring-center">
         <Leaf size={24} />
-        <strong>{companies.length}</strong>
+        <strong>{companiesList.length}</strong>
         <span>companies</span>
       </div>
     </div>
   );
 }
 
-function ProfileChart({ onSelect }: { onSelect: (c: Company) => void }) {
+function ProfileChart({
+  onSelect,
+  companiesList = companies,
+}: {
+  onSelect: (c: Company) => void;
+  companiesList?: Company[];
+}) {
   return (
     <div className="profile-chart">
       <div className="chart-axis-title">
@@ -180,6 +198,15 @@ function ProfileChart({ onSelect }: { onSelect: (c: Company) => void }) {
             rx="3"
             fill="var(--chart-zone)"
           />
+          <text x="590" y="30" textAnchor="end" fill="var(--muted)" fontSize="10" opacity="0.65">
+            Transition Leader
+          </text>
+          <text x="590" y="215" textAnchor="end" fill="var(--muted)" fontSize="10" opacity="0.65">
+            Transition Risk
+          </text>
+          <text x="80" y="30" textAnchor="start" fill="var(--muted)" fontSize="10" opacity="0.65">
+            Clean / Low Impact
+          </text>
           {[0, 2, 4, 6, 8, 10].map((n) => (
             <g key={n}>
               <line
@@ -210,7 +237,7 @@ function ProfileChart({ onSelect }: { onSelect: (c: Company) => void }) {
               </text>
             </g>
           ))}
-          {companies
+          {companiesList
             .filter((c) => c.score !== null)
             .map((c) => (
               <g key={c.id}>
@@ -234,7 +261,7 @@ function ProfileChart({ onSelect }: { onSelect: (c: Company) => void }) {
               </g>
             ))}
         </svg>
-        {companies
+        {companiesList
           .filter((c) => c.score !== null)
           .map((c) => (
             <button
@@ -254,7 +281,7 @@ function ProfileChart({ onSelect }: { onSelect: (c: Company) => void }) {
         <span>Industry environmental importance →</span>
       </div>
       <div className="chart-legend">
-        {companies
+        {companiesList
           .filter((c) => c.score !== null)
           .map((c) => (
             <button key={c.id} onClick={() => onSelect(c)}>
@@ -271,13 +298,15 @@ function HoldingTable({
   query,
   onQuery,
   onSelect,
+  companiesList = companies,
 }: {
   query: string;
   onQuery: (q: string) => void;
   onSelect: (c: Company) => void;
+  companiesList?: Company[];
 }) {
   const [sort, setSort] = useState<"allocation" | "score">("allocation");
-  const filtered = companies
+  const filtered = companiesList
     .filter((c) =>
       `${c.name} ${c.ticker} ${c.sector} ${c.region}`
         .toLowerCase()
@@ -293,7 +322,7 @@ function HoldingTable({
       <div className="section-top">
         <div>
           <h2>
-            Your holdings <span className="count">05</span>
+            Your holdings <span className="count">{String(companiesList.length).padStart(2, "0")}</span>
           </h2>
           <p>See the companies behind your portfolio.</p>
         </div>
@@ -372,16 +401,18 @@ function HoldingTable({
                     tone={
                       c.score === null
                         ? "neutral"
-                        : c.id === "river"
+                        : c.greenwasher
                           ? "amber"
                           : "mint"
                     }
                   >
                     {c.score === null
                       ? "Missing data"
-                      : c.id === "river"
-                        ? "Review suggested"
-                        : "Sample available"}
+                      : c.greenwasher
+                        ? "⚠️ Greenwash Risk"
+                        : c.greenhusher
+                          ? "🌱 Quiet Action"
+                          : "Complete"}
                   </Badge>
                 </td>
                 <td>
@@ -410,9 +441,9 @@ function HoldingTable({
       </div>
       <div className="table-foot">
         <span>
-          {filtered.length} of {companies.length} fictional companies
+          {filtered.length} of {companiesList.length} companies
         </span>
-        <span>Illustrative reporting period · FY 2025</span>
+        <span>Quantitative emissions & filing analysis</span>
       </div>
     </section>
   );
@@ -447,6 +478,16 @@ function CompanyDetail({
           </div>
           <Leaf size={40} weight="duotone" />
         </div>
+        {c.greenwasher && (
+          <div style={{ marginTop: "8px" }}>
+            <Badge tone="amber">⚠️ High Greenwash Risk · Talk outpaces Walk</Badge>
+          </div>
+        )}
+        {c.greenhusher && (
+          <div style={{ marginTop: "8px" }}>
+            <Badge tone="mint">🌱 Quiet Decarbonization · Walk exceeds Talk</Badge>
+          </div>
+        )}
         <p className="detail-note">{c.note}</p>
         <div className="detail-facts">
           <div>
@@ -465,6 +506,12 @@ function CompanyDetail({
                 : ((-(10 - c.score) * c.materiality) / 100).toFixed(2)}
             </strong>
           </div>
+          {c.gap !== undefined && c.gap !== null && (
+            <div>
+              <span>Talk–Walk Gap</span>
+              <strong>{c.gap > 0 ? `+${c.gap}` : c.gap}</strong>
+            </div>
+          )}
         </div>
         <h3>Behind the score</h3>
         <p className="muted">Separate sample signals, each on a 0–10 scale.</p>
@@ -531,17 +578,57 @@ function CompanyDetail({
   );
 }
 
-function Explore() {
-  const [weights, setWeights] = useState<number[]>([...baseline]);
+function Explore({
+  companiesList = companies,
+  onNotice,
+}: {
+  companiesList?: Company[];
+  onNotice?: (msg: string) => void;
+}) {
+  const initialWeights = companiesList.map((c) => c.allocation);
+  const [weights, setWeights] = useState<number[]>(initialWeights);
   const [compared, setCompared] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<PortfolioAnalysis | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+
+  useEffect(() => {
+    setWeights(companiesList.map((c) => c.allocation));
+    setCompared(false);
+    setAnalysisResult(null);
+  }, [companiesList]);
+
   const total = weights.reduce((a, b) => a + b, 0);
   const valid =
     weights.every((w) => Number.isFinite(w) && w >= 0 && w <= 100) &&
     Math.abs(total - 100) < 0.001;
+
   const change = (index: number, value: number) => {
     setWeights((old) => old.map((w, i) => (i === index ? value : w)));
     setCompared(false);
+    setAnalysisResult(null);
   };
+
+  const handleCompare = async () => {
+    setCompared(true);
+    const allocMap: Record<string, number> = {};
+    companiesList.forEach((c, i) => {
+      allocMap[c.id] = weights[i] ?? 0;
+    });
+    setAnalyzing(true);
+    const res = await analyzePortfolioApi(allocMap);
+    setAnalysisResult(res);
+    setAnalyzing(false);
+  };
+
+  const exportRebalancedCsv = () => {
+    const rows = ["ticker,name,allocation,e_score,e_weight"];
+    companiesList.forEach((c, i) => {
+      rows.push(`${c.ticker},"${c.name}",${weights[i]},${c.score ?? ""},${c.materiality}`);
+    });
+    downloadCsvFile("green_street_rebalanced.csv", rows.join("\n"));
+    onNotice?.("Rebalanced portfolio CSV downloaded.");
+  };
+
   return (
     <div className="explore-page enter">
       <div className="page-heading">
@@ -559,14 +646,15 @@ function Explore() {
             <button
               className="text-button"
               onClick={() => {
-                setWeights([...baseline]);
+                setWeights(companiesList.map((c) => c.allocation));
                 setCompared(false);
+                setAnalysisResult(null);
               }}
             >
               Reset
             </button>
           </div>
-          {companies.map((c, i) => (
+          {companiesList.map((c, i) => (
             <div className="allocation-input" key={c.id}>
               <div className="allocation-name">
                 <CompanyMark company={c} />
@@ -612,8 +700,16 @@ function Explore() {
             <button
               className="secondary"
               onClick={() => {
-                setWeights([...alternative]);
+                if (companiesList.length === 5) {
+                  setWeights([...alternative]);
+                } else {
+                  // Tilt to greener companies
+                  const clean = companiesList.map((c) => (c.score !== null && c.score >= 7.0 ? 30 : 10));
+                  const s = clean.reduce((a, b) => a + b, 0);
+                  setWeights(clean.map((w) => Math.round((w / s) * 100)));
+                }
                 setCompared(false);
+                setAnalysisResult(null);
               }}
             >
               <Sparkle size={16} />
@@ -621,10 +717,10 @@ function Explore() {
             </button>
             <button
               className="primary"
-              disabled={!valid}
-              onClick={() => setCompared(true)}
+              disabled={!valid || analyzing}
+              onClick={handleCompare}
             >
-              Compare allocation <ArrowRight size={16} />
+              {analyzing ? "Analyzing..." : "Compare allocation"} <ArrowRight size={16} />
             </button>
           </div>
         </section>
@@ -654,13 +750,13 @@ function Explore() {
                 </span>
               </div>
               <div className="comparison-bars">
-                {companies.map((c, i) => (
+                {companiesList.map((c, i) => (
                   <div key={c.id}>
                     <div className="bar-title">
                       <strong>{c.name}</strong>
                       <span>
-                        {weights[i] - c.allocation > 0 ? "+" : ""}
-                        {Number((weights[i] - c.allocation).toFixed(2))} pp
+                        {(weights[i] ?? 0) - c.allocation > 0 ? "+" : ""}
+                        {Number(((weights[i] ?? 0) - c.allocation).toFixed(2))} pp
                       </span>
                     </div>
                     <div className="compare-track">
@@ -668,8 +764,8 @@ function Explore() {
                       <span>{c.allocation}%</span>
                     </div>
                     <div className="compare-track draft">
-                      <i style={{ width: `${weights[i]}%` }} />
-                      <span>{weights[i]}%</span>
+                      <i style={{ width: `${weights[i] ?? 0}%` }} />
+                      <span>{weights[i] ?? 0}%</span>
                     </div>
                   </div>
                 ))}
@@ -677,17 +773,54 @@ function Explore() {
               <div className="coverage-compare">
                 <span>Weight with company analysis</span>
                 <strong>
-                  {coverage(baseline)}% <ArrowRight size={18} />{" "}
-                  {coverage(weights)}%
+                  {coverage(companiesList.map((c) => c.allocation), companiesList)}% <ArrowRight size={18} />{" "}
+                  {coverage(weights, companiesList)}%
                 </strong>
               </div>
               <p className="muted small">
-                Coverage measures data availability, not environmental quality.
+                Coverage measures verified emissions data availability.
               </p>
+              {analysisResult && (
+                <div className="esg-scorecard">
+                  <div className="esg-scorecard-head">
+                    <h4>Live ESG Impact & Alignment</h4>
+                    <Badge tone="mint">Quant Analysis</Badge>
+                  </div>
+                  <div className="esg-scorecard-grid">
+                    <div className="esg-scorecard-card">
+                      <span>Portfolio Greenness</span>
+                      <strong>{analysisResult.portfolio_greenness !== null ? analysisResult.portfolio_greenness : "—"}</strong>
+                      <small className="positive">Target: 0.0 (Net Zero)</small>
+                    </div>
+                    <div className="esg-scorecard-card">
+                      <span>Carbon Intensity</span>
+                      <strong>{analysisResult.weighted_pillars.carbon !== null ? `${analysisResult.weighted_pillars.carbon}/10` : "—"}</strong>
+                      <small className="neutral">Audited emissions rank</small>
+                    </div>
+                    <div className="esg-scorecard-card">
+                      <span>Greenwash Exposure</span>
+                      <strong>{analysisResult.greenwash_flagged_allocation ?? 0}%</strong>
+                      <small className={analysisResult.greenwash_flagged_allocation === 0 ? "positive" : "neutral"}>
+                        {analysisResult.greenwash_flagged_allocation === 0 ? "Zero flagged capital" : "Flagged talk-walk gap"}
+                      </small>
+                    </div>
+                    <div className="esg-scorecard-card">
+                      <span>Verified Coverage</span>
+                      <strong>{analysisResult.coverage_pct}%</strong>
+                      <small className="positive">Audited company data</small>
+                    </div>
+                  </div>
+                  <div className="rebalance-actions">
+                    <button className="secondary" type="button" onClick={exportRebalancedCsv}>
+                      <DownloadSimple size={16} /> Export Rebalanced CSV
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
           ) : (
             <div className="comparison-placeholder">
-              <AllocationRing large />
+              <AllocationRing companiesList={companiesList} large />
               <h3>Your portfolio. Your perspective.</h3>
               <p>
                 Use the example or edit the percentages, then compare your
@@ -797,18 +930,28 @@ function Method() {
 }
 
 function BlueOverview({
+  portfolio = companies,
   onSelect,
   onExplore,
   onMethod,
   query,
   onQuery,
 }: {
+  portfolio?: Company[];
   onSelect: (c: Company) => void;
   onExplore: () => void;
   onMethod: () => void;
   query: string;
   onQuery: (q: string) => void;
 }) {
+  const coveredCount = portfolio.filter((c) => c.score !== null).length;
+  const covPct = coverage(portfolio.map((c) => c.allocation), portfolio);
+  const sectors = Array.from(new Set(portfolio.map((c) => c.sector)));
+  const markets = Array.from(new Set(portfolio.map((c) => c.region)));
+  const greenwashCandidate = portfolio.find((c) => c.greenwasher) || portfolio.find((c) => (c.gap ?? 0) > 0) || portfolio[0];
+  const missingCandidate = portfolio.find((c) => c.score === null);
+  const missingWeight = portfolio.filter((c) => c.score === null).reduce((sum, c) => sum + c.allocation, 0);
+
   return (
     <div className="enter">
       <div className="page-heading heading-with-action">
@@ -828,7 +971,8 @@ function BlueOverview({
             Companies in your portfolio <ChartDonut size={17} />
           </span>
           <strong>
-            05<small>across 5 sectors</small>
+            {portfolio.length.toString().padStart(2, "0")}
+            <small>across {sectors.length} sectors</small>
           </strong>
         </div>
         <div>
@@ -836,8 +980,8 @@ function BlueOverview({
             Weight with company analysis <Info size={16} />
           </span>
           <strong>
-            88<em>%</em>
-            <small className="green-text">4 of 5 companies</small>
+            {covPct}<em>%</em>
+            <small className="green-text">{coveredCount} of {portfolio.length} companies</small>
           </strong>
         </div>
         <div>
@@ -845,7 +989,8 @@ function BlueOverview({
             Markets in this sample <Compass size={17} />
           </span>
           <strong>
-            03<small>China · Hong Kong · Taiwan</small>
+            {markets.length.toString().padStart(2, "0")}
+            <small>{markets.slice(0, 3).join(" · ")}</small>
           </strong>
         </div>
       </section>
@@ -856,9 +1001,9 @@ function BlueOverview({
               <h2>Your environmental profile</h2>
               <p>Company performance, with industry context.</p>
             </div>
-            <Badge tone="blue">FY 2025 · Sample</Badge>
+            <Badge tone="blue">FY 2025 · Live Analysis</Badge>
           </div>
-          <ProfileChart onSelect={onSelect} />
+          <ProfileChart onSelect={onSelect} companiesList={portfolio} />
         </section>
         <aside className="insight-panel">
           <div className="insight-top">
@@ -872,39 +1017,52 @@ function BlueOverview({
             Clearer decisions.
           </h2>
           <p>Look past a single score to understand what drives it.</p>
-          <button
-            className="insight-item"
-            onClick={() => onSelect(companies[3])}
-          >
-            <span className="insight-number amber-text">01</span>
-            <div>
-              <strong>A gap worth exploring</strong>
-              <p>Riverstone’s commitments exceed its documented actions.</p>
+          {greenwashCandidate && (
+            <button
+              className="insight-item"
+              onClick={() => onSelect(greenwashCandidate)}
+            >
+              <span className="insight-number amber-text">01</span>
+              <div>
+                <strong>A gap worth exploring</strong>
+                <p>
+                  {greenwashCandidate.name}’s commitments {greenwashCandidate.greenwasher ? "significantly exceed" : "differ from"} documented actions.
+                </p>
+              </div>
+              <ArrowUpRight size={17} />
+            </button>
+          )}
+          {missingCandidate ? (
+            <button
+              className="insight-item"
+              onClick={() => onSelect(missingCandidate)}
+            >
+              <span className="insight-number">02</span>
+              <div>
+                <strong>A piece of the picture is missing</strong>
+                <p>{missingWeight}% of your portfolio has no company analysis.</p>
+              </div>
+              <ArrowUpRight size={17} />
+            </button>
+          ) : (
+            <div className="insight-item">
+              <span className="insight-number mint-text">02</span>
+              <div>
+                <strong>Comprehensive coverage</strong>
+                <p>100% of your portfolio weight has verified company analysis.</p>
+              </div>
             </div>
-            <ArrowUpRight size={17} />
-          </button>
-          <button
-            className="insight-item"
-            onClick={() => onSelect(companies[4])}
-          >
-            <span className="insight-number">02</span>
-            <div>
-              <strong>A piece of the picture is missing</strong>
-              <p>12% of your portfolio has no company analysis.</p>
-            </div>
-            <ArrowUpRight size={17} />
-          </button>
+          )}
           <button className="text-button insight-link" onClick={onMethod}>
             How to read these signals <ArrowRight size={16} />
           </button>
         </aside>
       </div>
-      <HoldingTable query={query} onQuery={onQuery} onSelect={onSelect} />
+      <HoldingTable query={query} onQuery={onQuery} onSelect={onSelect} companiesList={portfolio} />
       <div className="footnote">
         <Info size={15} />
         <span>
-          Environmental insights, not a full ESG rating. Fictional data for
-          demonstration.
+          Quantitative emissions & gap analysis powered by consolidated ESGx engine.
         </span>
       </div>
     </div>
@@ -912,18 +1070,23 @@ function BlueOverview({
 }
 
 function GreenOverview({
+  portfolio = companies,
   onSelect,
   onExplore,
   onMethod,
   query,
   onQuery,
 }: {
+  portfolio?: Company[];
   onSelect: (c: Company) => void;
   onExplore: () => void;
   onMethod: () => void;
   query: string;
   onQuery: (q: string) => void;
 }) {
+  const covPct = coverage(portfolio.map((c) => c.allocation), portfolio);
+  const markets = Array.from(new Set(portfolio.map((c) => c.region)));
+
   return (
     <div className="enter">
       <section className="green-hero">
@@ -956,7 +1119,7 @@ function GreenOverview({
             Your portfolio, connected
           </span>
           <div className="orbit-circle">
-            <AllocationRing large />
+            <AllocationRing large companiesList={portfolio} />
           </div>
           <div className="orbit-card">
             <span className="orbit-icon">
@@ -964,19 +1127,19 @@ function GreenOverview({
             </span>
             <div>
               <strong>
-                88% <small>of portfolio weight</small>
+                {covPct}% <small>of portfolio weight</small>
               </strong>
               <span>has company analysis</span>
             </div>
           </div>
           <span className="orbit-label bottom">
-            5 companies · 3 markets · One perspective
+            {portfolio.length} companies · {markets.length} markets · One perspective
           </span>
         </div>
       </section>
       <div className="green-stat-line">
         <div>
-          <strong>05</strong>
+          <strong>{portfolio.length.toString().padStart(2, "0")}</strong>
           <span>
             Companies
             <br />
@@ -985,7 +1148,7 @@ function GreenOverview({
         </div>
         <div>
           <strong>
-            88<span>%</span>
+            {covPct}<span>%</span>
           </strong>
           <span>
             Weight with
@@ -994,11 +1157,11 @@ function GreenOverview({
           </span>
         </div>
         <div>
-          <strong>03</strong>
+          <strong>{markets.length.toString().padStart(2, "0")}</strong>
           <span>
             Markets in
             <br />
-            this fictional sample
+            this portfolio
           </span>
         </div>
         <button className="text-button" onClick={onMethod}>
@@ -1015,7 +1178,7 @@ function GreenOverview({
         </button>
       </div>
       <div className="company-cards">
-        {companies.slice(0, 3).map((c, i) => (
+        {portfolio.slice(0, 3).map((c, i) => (
           <button
             className={`company-story story-${i}`}
             key={c.id}
@@ -1046,7 +1209,7 @@ function GreenOverview({
           </button>
         ))}
       </div>
-      <HoldingTable query={query} onQuery={onQuery} onSelect={onSelect} />
+      <HoldingTable query={query} onQuery={onQuery} onSelect={onSelect} companiesList={portfolio} />
       <section className="green-learning">
         <span className="learning-icon">
           <Leaf size={37} weight="duotone" />
@@ -1063,6 +1226,142 @@ function GreenOverview({
         </button>
       </section>
     </div>
+  );
+}
+
+function PortfolioUploadModal({
+  onClose,
+  onUploadSuccess,
+}: {
+  onClose: () => void;
+  onUploadSuccess: (companies: Company[]) => void;
+}) {
+  const [csvText, setCsvText] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleDownloadSample = async () => {
+    try {
+      const sample = await fetchSampleCsv();
+      downloadCsvFile("sample_holdings.csv", sample);
+    } catch {
+      downloadCsvFile(
+        "sample_holdings.csv",
+        "ticker,allocation\n0002.HK,28\n2330.TW,22\n0066.HK,20\n0857.HK,18\n0992.HK,12\n"
+      );
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      setCsvText(text);
+      setError(null);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleSubmit = async () => {
+    if (!csvText.trim()) {
+      setError("Please paste CSV data or choose a file.");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await uploadPortfolioCsv(csvText);
+      if (result.success && result.companies && result.companies.length > 0) {
+        onUploadSuccess(result.companies);
+        onClose();
+      } else {
+        setError(result.error || "Failed to parse portfolio CSV");
+      }
+    } catch (err: any) {
+      setError(err?.message || "Failed to upload and analyze portfolio");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal title="Import Portfolio Holdings (CSV)" onClose={onClose} wide>
+      <div className="upload-modal-body">
+        <p style={{ margin: 0, fontSize: "13px", color: "var(--muted)" }}>
+          Upload your portfolio holdings with ticker symbols and percentage allocations.
+          The engine will match holdings to the quantitative universe and compute live greenness, talk-walk gap, and carbon metrics.
+        </p>
+
+        <div
+          className="upload-dropzone"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <UploadSimple size={32} style={{ marginBottom: "8px", color: "var(--primary)" }} />
+          <div>
+            <strong>Choose a CSV file</strong> or drag & drop here
+          </div>
+          <small style={{ color: "var(--muted)", display: "block", marginTop: "4px" }}>
+            Accepts format: <code>ticker,allocation</code> (e.g. <code>0002.HK, 28%</code>)
+          </small>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,text/csv"
+            style={{ display: "none" }}
+            onChange={handleFileChange}
+          />
+        </div>
+
+        <div>
+          <label style={{ display: "block", fontSize: "12px", fontWeight: 600, marginBottom: "6px" }}>
+            Or paste CSV content directly:
+          </label>
+          <textarea
+            className="upload-textarea"
+            rows={5}
+            placeholder={`ticker,allocation\n0002.HK,28\n2330.TW,22\n0066.HK,20\n0857.HK,18\n0992.HK,12`}
+            value={csvText}
+            onChange={(e) => {
+              setCsvText(e.target.value);
+              setError(null);
+            }}
+          />
+        </div>
+
+        {error && (
+          <div className="upload-error">
+            <WarningCircle size={16} style={{ verticalAlign: "text-bottom", marginRight: "4px" }} />
+            {error}
+          </div>
+        )}
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px" }}>
+          <button
+            type="button"
+            className="text-button"
+            onClick={handleDownloadSample}
+          >
+            <DownloadSimple size={16} /> Download Sample CSV
+          </button>
+          <div style={{ display: "flex", gap: "10px" }}>
+            <button type="button" className="secondary" onClick={onClose} disabled={loading}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="primary"
+              onClick={handleSubmit}
+              disabled={loading || !csvText.trim()}
+            >
+              {loading ? "Analyzing..." : "Import & Analyze Portfolio"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -1115,37 +1414,75 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [demoState, setDemoState] = useState<DemoState>("partial");
   const [notice, setNotice] = useState("");
+  const [portfolio, setPortfolio] = useState<Company[]>(companies);
+  const [isLive, setIsLive] = useState(false);
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    async function loadEngineData() {
+      try {
+        const health = await fetchHealth();
+        if (health && (health.status === "healthy" || health.status === "ok")) {
+          setIsLive(true);
+          const liveCompanies = await fetchCompanies();
+          if (mounted && liveCompanies && liveCompanies.length > 0) {
+            setPortfolio(liveCompanies);
+          }
+        }
+      } catch (err) {
+        console.warn("FastAPI engine not reachable, using static demonstration data.", err);
+      }
+    }
+    loadEngineData();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const handleUploadSuccess = (uploadedCompanies: Company[]) => {
+    setPortfolio(uploadedCompanies);
+    const covered = uploadedCompanies.filter((c) => c.score !== null).length;
+    setNotice(`Loaded ${uploadedCompanies.length} holdings (${covered} covered by ESG universe)`);
+  };
+
   useEffect(() => {
     document.documentElement.dataset.theme = version;
     const url = new URL(location.href);
     url.searchParams.set("v", version);
     history.replaceState({}, "", url);
   }, [version]);
+
   useEffect(() => {
     if (demoState === "loading") {
       const id = window.setTimeout(() => setDemoState("partial"), 900);
       return () => clearTimeout(id);
     }
   }, [demoState]);
+
   useEffect(() => {
     if (notice) {
       const id = window.setTimeout(() => setNotice(""), 3500);
       return () => clearTimeout(id);
     }
   }, [notice]);
+
   const navigate = (next: View) => {
     setView(next);
     window.scrollTo({ top: 0, behavior: "instant" });
   };
+
   const exportData = () => {
     const blob = new Blob(
       [
         JSON.stringify(
           {
-            isDemo: true,
-            notice: "Fictional UI data. Not investment analysis.",
+            isDemo: !isLive,
+            notice: isLive
+              ? "Live ESG Quantitative Engine Portfolio Export"
+              : "Fictional UI data. Not investment analysis.",
             period: "FY 2025",
-            companies,
+            companies: portfolio,
             capabilities,
           },
           null,
@@ -1157,18 +1494,21 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "green-street-demo-portfolio.json";
+    a.download = "green-street-portfolio.json";
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    setNotice("Sample portfolio downloaded.");
+    setNotice("Portfolio downloaded.");
   };
+
   const overviewProps = {
+    portfolio,
     onSelect: setSelected,
     onExplore: () => navigate("explore"),
     onMethod: () => navigate("method"),
     query,
     onQuery: setQuery,
   };
+
   return (
     <div className={`app ${version}`}>
       <a className="skip-link" href="#main">
@@ -1201,7 +1541,7 @@ export default function App() {
           </button>
         </div>
         <span className="concept-note">
-          Fictional data · Interactive prototype
+          {isLive ? "Live Quantitative Engine · HK/China Universe" : "Fictional data · Interactive prototype"}
         </span>
       </div>
       {version === "blue" ? (
@@ -1236,7 +1576,7 @@ export default function App() {
             <span className="avatar">JD</span>
             <div>
               <strong>Jamie’s workspace</strong>
-              <small>Personal portfolio · Demo</small>
+              <small>Personal portfolio · {isLive ? "Engine live" : "Demo"}</small>
             </div>
           </div>
         </aside>
@@ -1255,7 +1595,21 @@ export default function App() {
               </button>
             ))}
           </nav>
-          <span className="avatar">JD</span>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <Badge tone={isLive ? "mint" : "neutral"}>
+              <span className={`status-dot ${isLive ? "live" : ""}`} />
+              {isLive ? "Engine Connected" : "Demo Portfolio"}
+            </Badge>
+            <button
+              className="secondary"
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "11px", padding: "6px 12px" }}
+              onClick={() => setUploadModalOpen(true)}
+            >
+              <UploadSimple size={15} />
+              Import CSV
+            </button>
+            <span className="avatar">JD</span>
+          </div>
         </header>
       )}
       <div className="workspace">
@@ -1266,14 +1620,22 @@ export default function App() {
               <strong>{navItems.find((n) => n.id === view)?.label}</strong>
             </div>
             <div className="workspace-actions">
-              <Badge tone="mint">
-                <span className="status-dot" />
-                Demo portfolio
+              <Badge tone={isLive ? "mint" : "neutral"}>
+                <span className={`status-dot ${isLive ? "live" : ""}`} />
+                {isLive ? "Engine Connected" : "Demo Portfolio"}
               </Badge>
               <button
+                className="secondary"
+                style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "11px", padding: "6px 12px" }}
+                onClick={() => setUploadModalOpen(true)}
+              >
+                <UploadSimple size={15} />
+                Import CSV
+              </button>
+              <button
                 className="icon-button"
-                aria-label="Download sample portfolio"
-                title="Download sample portfolio"
+                aria-label="Download portfolio data"
+                title="Download portfolio data"
                 onClick={exportData}
               >
                 <DownloadSimple size={20} />
@@ -1297,7 +1659,7 @@ export default function App() {
               />
             )
           ) : view === "explore" ? (
-            <Explore />
+            <Explore companiesList={portfolio} onNotice={setNotice} />
           ) : (
             <Method />
           )}
@@ -1325,7 +1687,7 @@ export default function App() {
               Export sample <DownloadSimple size={15} />
             </button>
             <span className="demo-disclaimer">
-              Fictional data · No live trading
+              {isLive ? "Quantitative engine connected · HK Universe" : "Fictional data · No live trading"}
             </span>
           </footer>
         </main>
@@ -1338,6 +1700,12 @@ export default function App() {
             setSelected(null);
             navigate("explore");
           }}
+        />
+      )}
+      {uploadModalOpen && (
+        <PortfolioUploadModal
+          onClose={() => setUploadModalOpen(false)}
+          onUploadSuccess={handleUploadSuccess}
         />
       )}
       {notice && (

@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 4319 --strictPort",
     "build": "tsc -b && vite build",
-    "preview": "vite preview --host 127.0.0.1 --port 4319 --strictPort"
+    "preview": "vite preview --host 127.0.0.1 --port 4319 --strictPort",
+    "api": "uvicorn server.main:app --host 127.0.0.1 --port 8000 --reload",
+    "test:engine": "PYTHONPATH=.:engine:engine/greenwash pytest"
   },
   "dependencies": {
     "@fontsource-variable/dm-sans": "^5.3.0",
