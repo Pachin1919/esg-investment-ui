@@ -90,3 +90,30 @@ def test_api_companies_one_scored_row_per_firm(client):
     assert all(c["region"] != "nan" and c["name"] != "nan" for c in companies)
     # every firm with a walk score carries the same number as its E_score (E_score IS walk)
     assert all(c["score"] == c["walk"] for c in companies if c["walk"] is not None)
+
+
+def test_firms_with_greenness_only_are_listed(tmp_path, monkeypatch):
+    """A market whose greenwashing table covers few firms still lists every firm with greenness."""
+    from server import dataset
+
+    out, raw = tmp_path / "outputs", tmp_path / "raw"
+    out.mkdir(), raw.mkdir()
+    monkeypatch.setattr(dataset, "OUTPUT_DIR", out)
+    monkeypatch.setattr(dataset, "RAW_DIR", raw)
+    pd.DataFrame({"firm_id": ["1101.TW"], "year": [2025], "sector": ["Cement"], "greenwasher": [1], "greenhusher": [0],
+                  "talk": [10.0], "walk": [1.7], "gap": [8.3]}).to_csv(out / "det_greenwashing_tw.csv", index=False)
+    pd.DataFrame({"firm_id": ["1101.TW", "2330.TW", "2330.TW"], "year": [2025, 2024, 2025],
+                  "e_score": [3.0, 6.0, 7.0], "e_weight": [40.0, 30.0, 30.0]}).to_csv(out / "det_greenness_tw.csv", index=False)
+    pd.DataFrame({"firm_id": ["1101.TW", "2330.TW"], "name": ["TCC", "TSMC"],
+                  "sector": ["Cement", "Semiconductor"]}).to_parquet(raw / "universe_twse.parquet")
+    df = dataset.load_market("tw").set_index("firm_id")
+    assert list(df.index) == ["1101.TW", "2330.TW"]
+    assert df.loc["1101.TW", "talk"] == 10.0 and df.loc["1101.TW", "e_score"] == 3.0
+    tsmc = format_company_for_ui(df.reset_index().iloc[1])
+    assert tsmc["name"] == "TSMC" and tsmc["sector"] == "Semiconductor" and tsmc["region"] == "Taiwan"
+    assert tsmc["score"] == 7.0  # latest greenness year
+    assert tsmc["talk"] is None and tsmc["gap"] is None and tsmc["greenwasher"] is False
+    (out / "det_greenwashing_tw.csv").unlink()
+    assert len(dataset.load_market("tw")) == 2  # greenness alone is enough
+    (out / "det_greenness_tw.csv").unlink()
+    assert dataset.load_market("tw") is None

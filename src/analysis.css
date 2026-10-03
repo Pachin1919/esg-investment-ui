@@ -475,9 +475,19 @@
 .builder-comparison .comparison-flat{color:#687c90}
 .builder-comparison .trade-action.buy{background:#e6f3ec;color:var(--quote-up)}
 .builder-comparison .trade-action.sell{background:#fbecee;color:var(--quote-down)}
-.view-tabs{display:flex;gap:6px;margin:0 0 18px;border-bottom:1px solid #dfe6ee}
-.view-tabs button{display:inline-flex;align-items:center;gap:8px;padding:11px 16px;border:0;border-bottom:3px solid transparent;margin-bottom:-1px;background:none;color:#607a90;font-size:14px;font-weight:650}
-.view-tabs button[aria-selected="true"]{color:#2f5f9e;border-bottom-color:#2f5f9e}
-.view-tabs button:hover:not(:disabled){color:#2f5f9e}
-.view-tabs button:disabled{opacity:.45;cursor:not-allowed}
+/* Tabs and the export button stay in view while the page scrolls. */
+.view-tabs{position:sticky;top:0;z-index:20;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 18px;padding-top:10px;background:#f5f7fa;border-bottom:1px solid #dfe6ee}
+.view-tabs>.button.primary{min-height:42px;padding:0 18px;margin-bottom:8px;background:#315f9d;box-shadow:0 8px 22px #315f9d26}
+.view-tabs>.button.primary:hover{background:#284f86}
+.view-tabs [role=tablist]{display:flex;gap:6px;flex-wrap:wrap}
+.view-tabs [role=tab]{display:inline-flex;align-items:center;gap:8px;padding:11px 16px;border:0;border-bottom:3px solid transparent;margin-bottom:-1px;background:none;color:#607a90;font-size:14px;font-weight:650}
+.view-tabs [role=tab][aria-selected="true"]{color:#2f5f9e;border-bottom-color:#2f5f9e}
+.view-tabs [role=tab]:hover:not(:disabled){color:#2f5f9e}
+.view-tabs [role=tab]:disabled{opacity:.45;cursor:not-allowed}
 .comparison-tab{margin-top:0;padding-top:8px}
+.export-options .export-tables{grid-column:1/-1}
+.export-table-list{display:grid;gap:8px;margin-top:6px}
+.export-table-list>div{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 12px;border:1px solid #e3eaf1;border-radius:8px}
+.export-table-list strong{display:block;font-size:13px;color:#2c465e}
+.export-table-list small{display:block;font-size:11px;color:#73879a;margin-top:3px;line-height:1.5}
+.export-table-list .button{min-height:36px;padding:0 14px;flex:none}

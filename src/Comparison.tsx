@@ -19,7 +19,7 @@ function change(before: number | null, after: number | null, fmt: (x: number) =>
   return { tone: delta > 0 ? "comparison-up" : "comparison-down", text: `${delta > 0 ? "+" : "−"}${fmt(Math.abs(delta))}` };
 }
 
-function rows(baseline: Portfolio, result: Portfolio, before: PortfolioStats, after: PortfolioStats, targetCapital: number): Row[] {
+export function performanceRows(baseline: Portfolio, result: Portfolio, before: PortfolioStats, after: PortfolioStats, targetCapital: number): Row[] {
   const a = metrics(baseline), b = metrics(result), ccy = baseline.baseCurrency;
   return [
     { label: "Portfolio value", info: "Portfolio value", before: totalValue(baseline), after: totalValue(result) > 0 ? targetCapital : 0, fmt: x => money(x, ccy), section: "Risk and return" },
@@ -39,14 +39,18 @@ function rows(baseline: Portfolio, result: Portfolio, before: PortfolioStats, af
   ];
 }
 
+/** Every position held before or after, largest first. */
+export const comparisonPositions = (rec: Recommendation) =>
+  rec.trades.filter(t => t.w_current >= MIN_WEIGHT || t.w_target >= MIN_WEIGHT).sort((a, b) => Math.max(b.w_current, b.w_target) - Math.max(a.w_current, a.w_target));
+
 /** Current and recommended portfolio side by side: key figures, then every position. */
 export default function Comparison({ baseline, result, rec, universe }: { baseline: Portfolio; result: Portfolio; rec: Recommendation; universe: Universe }) {
   const ccy = result.baseCurrency;
   const cell = (r: Row, x: number | null) => (x === null ? "Unavailable" : r.fmt(x));
-  const positions = rec.trades.filter(t => t.w_current >= MIN_WEIGHT || t.w_target >= MIN_WEIGHT).sort((a, b) => Math.max(b.w_current, b.w_target) - Math.max(a.w_current, a.w_target));
+  const positions = comparisonPositions(rec);
   return <><div className="comparison-color-key" aria-label="Change direction"><span className="comparison-up">↑ Increase / buy</span><span className="comparison-down">↓ Decrease / sell</span><span>— Unchanged</span></div>
     <div className="table-scroll"><table className="comparison-table"><caption>Portfolio performance</caption><thead><tr><th>Metric</th><th>Old portfolio</th><th className="comparison-new">New portfolio</th><th>Change</th></tr></thead>
-    <tbody>{rows(baseline, result, rec.before, rec.after, rec.target_capital).flatMap(r => {
+    <tbody>{performanceRows(baseline, result, rec.before, rec.after, rec.target_capital).flatMap(r => {
       const delta = change(r.before, r.after, r.fmt);
       return [
       ...(r.section ? [<tr key={r.section} className="comparison-section"><th scope="rowgroup" colSpan={4}>{r.section}</th></tr>] : []),
