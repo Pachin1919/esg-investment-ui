@@ -12,6 +12,8 @@ the E-scoring pipeline, the green factor, or the stock-recommendation engine.
 | Fama & MacBeth (1973); Newey & West (1987) | Two-pass cross-sectional pricing; HAC standard errors | Return tests; validation tables |
 | Fama & French (2015); Carhart (1997) | FF5 + momentum risk model | Risk model; stock recommendations |
 | Jegadeesh & Titman (1993) | 12–2 momentum, skipping the most recent month | Local factor construction (Taiwan) |
+| Fama & French (2012, JFE) | Regional factor models describe regional returns better than a global one | Multi-market recommendations (one factor block per market) |
+| Solnik (1974) | Currency risk is part of an international investor's risk | Multi-market recommendations (unhedged, restated in HKD) |
 | Merton (1980) | Sample mean returns are unusable; factor-based `mu` | Stock recommendations |
 | Engle, Giglio, Kelly, Lee & Stroebel (2020, RFS) | Climate-news hedging; climate vocabulary similarity | Talk score; news channel |
 | Loughran & McDonald (2011, JF) | Finance-specific sentiment dictionary | Talk score (glossiness) |
@@ -19,7 +21,7 @@ the E-scoring pipeline, the green factor, or the stock-recommendation engine.
 | Gourier & Mathurin (2025) | LLM prompt discipline; salience | All AI agents (extraction, scoring, screening) |
 | Liang, Sun & Teo (2022); Chen (2022, 2025) | Words-vs-actions gap; talk/walk rubric dimensions | Talk/walk scoring; greenwashing detection |
 | Berg, Koelbel & Rigobon (2022, RFS) | ESG ratings diverge (56% measurement, 38% scope, 6% weight) | Motivation for the deterministic design |
-| Bellon & Boualam | Tilting beats divestment | Stock recommendations (long-only tilt) |
+| Bellon & Boualam | Tilting beats divestment | Stock recommendations (long-only tilt; filtered-out holdings are kept, not sold) |
 
 ---
 
@@ -129,11 +131,17 @@ are risk-adjusted with Ken French's published Asia Pacific ex Japan FF5 + moment
 for Taiwan, where no published set exists, we construct the factors locally with the same
 recipes (value-weighted market, median-split size, 30/70 book-to-market, 12–2 momentum).
 Expected returns and the covariance matrix used by the stock-recommendation engine are
-always factor-based — never sample averages.
+always factor-based (`mu = B·mu_f`, `Sigma = B·F·B' + D`) — never sample averages. The green
+factor joins the model for a market once at least 30 names are scored and 24 factor months
+exist; below that the model is FF5 + momentum only.
 
 ---
 
 ## 3. Stock recommendations
+
+The engine takes the investor's current holdings (capital per stock), a risk preference
+and a green preference (each 1–5), and optionally new capital and an industry selection.
+It returns the recommended portfolio next to the current one.
 
 - **Green exposures**: each stock's returns are regressed on FF5 + momentum + the green
   factor, giving its `b_gmb` — how it *behaves* when green outperforms. A stock can be
@@ -145,11 +153,56 @@ always factor-based — never sample averages.
   Underweighting brown against the benchmark is economically a benchmark-relative short,
   without short-selling frictions. The GMB factor itself remains the long-short
   measurement and hedging instrument.
+- **Preferences are anchored to outcomes, not to model parameters.** The risk score maps
+  to a target annual volatility (1–5 → 8, 12, 15, 20, 25 %) and the green score to a
+  target for the portfolio's average greenness, stated as a percentile of the candidate
+  universe (1 = no tilt, 2–5 → 60th, 70th, 80th, 90th percentile). "Medium risk, quite
+  green" therefore means the same portfolio in every market. Risk aversion is solved by
+  bisection until the volatility target is met; the green target enters as a hard linear
+  constraint (average `g` at least the target). When too few candidates are scored to
+  anchor on, the green score falls back to a fixed tilt strength. The targets are not
+  always attainable — a narrow universe or large kept holdings can leave volatility above
+  the target — so the response always reports the realized figures next to the targets.
 - **Optimization with a conscience for turnover**: target weights maximize expected return
-  minus risk-aversion × variance plus a green-preference term, subject to a linear
-  penalty on trading away from the user's current holdings — so no-change is the default
-  and every recommended trade must earn its cost. Risk preference (1–5) maps to risk
-  aversion, green preference (1–5) to the green term.
+  minus risk-aversion × variance, subject to the green constraint, a 15 % cap per stock,
+  long-only weights, and a linear penalty `kappa · Σ|w − w0|` on trading away from the
+  current holdings — so no-change is the default and every recommended trade must earn its
+  cost. The penalty is solved exactly as a conic program (cvxpy / CLARABEL), which keeps a
+  Taiwan-scale universe of about two thousand names at interactive speed; an SLSQP path
+  remains as fallback when cvxpy is not installed.
+- **New capital**: the investor can state an upper limit on fresh capital. The target
+  portfolio is sized to current capital plus that budget and the trade list deploys it as
+  net buys; the required injection never exceeds the limit.
+- **Industry selection is a hard, deterministic constraint.** The investor ticks sectors
+  and industries from the universe's actual values; only stocks in the selection are
+  candidates for buying and rebalancing. No model is involved, and the same selection
+  always yields the same trade list. Because the green percentile is taken over the
+  candidates, a narrower selection also moves the absolute green target. Holdings the
+  investor already owns outside the selection are **kept untouched** — the filter governs
+  what is bought, not what must be sold — in line with tilting rather than divesting. (The
+  free-text preference screen in section 4 is the stricter variant: there, holdings
+  outside the interpreted preferences are proposed for sale.)
+- **Several markets in one optimization** (Fama–French 2012; Solnik 1974): with all
+  markets selected, each market keeps its own regional factor set and the sets are stacked
+  into one block model. A stock loads only on its own market's factors, so cross-market
+  covariance comes entirely from the joint factor covariance. Returns are first restated
+  in Hong Kong dollars, unhedged, so currency risk is part of the volatility the investor
+  targets. Greenness is standardized within each market before pooling, so the green
+  target is not driven by level differences between markets or by the larger market's
+  firm count.
+- **What the investor gets back.** The current and the recommended portfolio side by side,
+  per position: weight, capital and number of shares, the change in shares, and the
+  action. Share counts are capital divided by the latest close, rounded down to whole
+  shares (board lots are not modeled); a stock without a price shows no share count rather
+  than a guessed one. Key figures are reported for both portfolios over every holding the
+  risk model covers — including holdings kept outside the industry selection — so before
+  and after describe the same portfolio: annual volatility, model-implied return (a
+  factor-model estimate, not a forecast), average greenness, the portfolio's beta to each
+  factor (market, size, value, profitability, investment, momentum and, when estimated,
+  green; one set per market when markets are pooled), number of positions, largest
+  position and the effective number of positions (inverse Herfindahl). Holdings without
+  enough return history cannot be risk-modeled; they stay at their current capital and are
+  listed separately.
 
 ---
 
@@ -168,8 +221,10 @@ what is supplied; it must not infer, invent or speculate.
   model and prompt variant — re-runs are free and comparable.
 - **Preference screening**: the investor's free-text preferences are translated into a
   filter choosing only from the universe's *actual* sectors, industries and countries;
-  the parsed interpretation is shown before any trade is proposed. The model proposes,
-  the code disposes.
+  the parsed interpretation is returned with the recommendation. The model proposes,
+  the code disposes: the same deterministic filter that applies the model's interpretation
+  also applies the investor's own industry selection (section 3), where no model is
+  involved at all.
 - **Two-model design**: Kimi K3 is the primary model, Claude the second rater; the model
   identity is part of every cache key so raters never mix.
 
@@ -198,6 +253,8 @@ score, everything — factors, exposures, optimization — is deterministic and 
 - Fama, E. F., & French, K. R. (2015). A five-factor asset pricing model. *Journal of Financial Economics*.
 - Carhart, M. M. (1997). On persistence in mutual fund performance. *Journal of Finance*.
 - Jegadeesh, N., & Titman, S. (1993). Returns to buying winners and selling losers. *Journal of Finance*.
+- Fama, E. F., & French, K. R. (2012). Size, value, and momentum in international stock returns. *Journal of Financial Economics*.
+- Solnik, B. H. (1974). An equilibrium model of the international capital market. *Journal of Economic Theory*.
 - Newey, W. K., & West, K. D. (1987). A simple, positive semi-definite, heteroskedasticity and autocorrelation consistent covariance matrix. *Econometrica*.
 - Merton, R. C. (1980). On estimating the expected return on the market. *Journal of Financial Economics*.
 - Engle, R. F., Giglio, S., Kelly, B., Lee, H., & Stroebel, J. (2020). Hedging climate change news. *Review of Financial Studies*.
