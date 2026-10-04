@@ -1,0 +1,18 @@
+# What Cloud Build uploads for deploy/cloud-run.sh. Without this file gcloud falls back to
+# .gitignore, which would leave out the data snapshot (engine/data, engine/outputs are
+# git-ignored and force-added). Keep in step with .dockerignore.
+.git
+node_modules
+dist
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/.venv
+# secrets never go into the image
+.env
+**/.env
+**/.env.*
+engine/tests
+engine/notebooks
+docs
+tests
