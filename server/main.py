@@ -21,7 +21,7 @@ if _engine_src not in sys.path:
     sys.path.insert(0, _engine_src)
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import pandas as pd
@@ -351,3 +351,18 @@ def get_methodology() -> dict[str, Any]:
             "fama_macbeth": "Cross-sectional regressions with Newey-West standard errors",
         },
     }
+
+
+# The built frontend, when present (the container image copies it to <repo>/dist): one
+# service then serves both the site and the API. Registered last so /api routes win.
+DIST = ROOT / "dist"
+if (DIST / "index.html").exists():
+    @app.get("/{path:path}", include_in_schema=False)
+    def frontend(path: str) -> FileResponse:
+        """Static asset when the path names one, else the app shell (client-side routes)."""
+        if path.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Not found")
+        target = (DIST / path).resolve()
+        if path and target.is_file() and target.is_relative_to(DIST.resolve()):
+            return FileResponse(target)
+        return FileResponse(DIST / "index.html")

@@ -1,0 +1,15 @@
+.git
+node_modules
+dist
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/.venv
+# secrets never go into the image
+.env
+**/.env
+**/.env.*
+engine/tests
+engine/notebooks
+docs
+tests
