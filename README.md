@@ -1,5 +1,7 @@
-# esg-investment-ui
-UI and frontend interactions for ESG Indicators for Retail Investment — hackathon project.
+# Green Street
+Environmental portfolio analysis for retail investors — a team project.
+
+The sections below document the initial UI prototypes. The repository now also includes the analysis engine and [integrated workspace](https://green-street-272061343685.asia-east2.run.app/app).
 
 ## Two interactive UI demos
 
@@ -19,8 +21,8 @@ React + TypeScript + Vite frontend with two distinct layouts:
 Use Node.js 22.12+ (validated with Node.js 24).
 
 ```sh
-git clone https://github.com/Pachin1919/esg-investment-ui.git
-cd esg-investment-ui
+git clone https://github.com/Pachin1919/green-street.git
+cd green-street
 npm ci
 npm run dev
 ```
@@ -44,13 +46,15 @@ All companies and metrics are fictional. Missing data remains unavailable. Alloc
 
 ### Previews
 
-**Clarity blue**
+**Official workspace**
 
-![Clarity blue portfolio workspace](docs/previews/blue-preview.png)
+![Green Street live portfolio workspace](docs/previews/official-workspace.png)
 
-**Sage green**
+**Official website**
 
-![Sage green guided portfolio](docs/previews/green-preview.png)
+![Green Street official website](docs/previews/official-home.png)
+
+Captured from the deployed application on 8 October 2026. The workspace uses a public sample portfolio; displayed return and volatility figures are model estimates.
 
 ### Project structure
 
@@ -59,7 +63,6 @@ src/App.tsx          Two layouts, company detail and allocation flows
 src/data.ts         Fictional fixtures and frontend capability definitions
 src/styles.css      Colours, typography, responsive layouts and motion
 docs/demo-guide.md  Detailed Chinese demo and implementation guide
-LOVABLE_HANDOFF.md  Instructions for continuing visual work in Lovable
 ```
 
 The frontend view model is not a confirmed backend API contract. Keep a future API adapter separate from the UI. This repository is not automatically connected to Lovable.

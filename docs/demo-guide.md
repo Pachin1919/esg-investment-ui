@@ -73,7 +73,6 @@ React + TypeScript + Vite，普通 CSS；Phosphor 图标，本地打包 DM Sans 
 - `src/App.tsx`：两个布局和交互组件。
 - `src/data.ts`：模拟公司数据、能力开关、覆盖率函数。
 - `src/styles.css`：两套配色、布局、响应式和动效。
-- `LOVABLE_HANDOFF.md`：可直接交给 Lovable 的接续说明。
 
 ```powershell
 npm run build
