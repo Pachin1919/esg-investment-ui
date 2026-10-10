@@ -1,73 +1,62 @@
 # Green Street
 Environmental portfolio analysis for retail investors — a team project.
 
-Green Street connects company environmental evidence with portfolio analysis: review environmental claims and reported performance, set investment preferences, and compare a proposed portfolio with your current holdings before making a decision.
-
-**[Watch the full demo and read the project story →](https://studio.pachin1919.workers.dev/work/green-street)** · [Open the integrated workspace](https://green-street-272061343685.asia-east2.run.app/app) · [Explore the analysis engine](engine/README.md)
-
 > we make your wallet and the streets green
 
-## Product and methodology showcase
+Green Street helps retail investors connect company environmental evidence with the financial characteristics of their portfolio. Evaluate a company, explore a proposed allocation, and compare the trade-offs before deciding what to do.
 
-### Official website
+**[Watch the demo & project story →](https://studio.pachin1919.workers.dev/work/green-street)** · [Try the workspace](https://green-street-272061343685.asia-east2.run.app/app) · [Analysis engine](engine/README.md)
 
 ![Green Street official website hero](docs/previews/official-home.png)
 
-### Portfolio workspace
+## From current holdings to a proposed portfolio
 
-![Green Street live portfolio workspace](docs/previews/official-workspace.png)
+1. **Import** your current portfolio and review the holdings.
+2. **Choose** risk tolerance, green preference and investment inputs.
+3. **Review** recommended allocations, compare metrics and inspect holding changes.
+4. **Export** the proposed holdings; execute any trades separately through your broker.
 
-The two images above were captured from the deployed application on 8 October 2026. The following seven images are full-frame captures from the product demo, combining explanatory slides with recorded interface views. They document the demonstrated flow rather than guarantee the current deployment looks identical.
+![Green Street portfolio workspace](docs/previews/official-workspace.png)
 
-### Two connected workflows
+## How the analysis works
 
-![Green Street company evaluation and portfolio analysis workflows](docs/previews/demo-vision.jpg)
+### 1. Compare claims with environmental performance
 
-Evaluate a company, then explore portfolio changes. Environmental indicators add context to the decision alongside financial risk and return.
+**Talk** measures environmental disclosure. **Walk** measures emissions intensity relative to industry peers. High Talk (≥ 8) combined with low Walk (≤ 10/3) triggers a potential greenwashing signal for closer review. A positive gap alone is not the flag; the signal is not proof of misconduct. [Source](engine/src/esgx/measures/greenwash.py).
 
-### Environmental claims versus performance
+![Environmental claims and reported performance compared through Talk and Walk](docs/previews/demo-greenwashing-clean.png)
 
-![Talk and Walk comparison showing a potential greenwashing signal](docs/previews/demo-greenwashing.jpg)
+### 2. Turn environmental evidence into company greenness
 
-**Talk** measures environmental disclosure; **Walk** measures emissions intensity relative to industry peers. The model flags high Talk (≥ 8) together with low Walk (≤ 10/3) for closer review. A positive Talk–Walk gap alone is not the flag, and the signal is not proof of misconduct. Coverage depends on the available company data. [Implementation](engine/src/esgx/measures/greenwash.py).
+The engine computes `g = −(10 − E_score) × E_weight / 100`. `E_score` is the Walk score; `E_weight` adds the industry's emissions-intensity context. Raw company greenness closer to zero is greener. Industry weight and portfolio allocation are different quantities. [Source](engine/src/esgx/measures/greenness.py).
 
-### Under the hood: company greenness
+![Company greenness equation with the environmental measurement pipeline](docs/previews/demo-greenness-clean.png)
 
-![Company greenness equation and environmental analysis pipeline](docs/previews/demo-greenness.jpg)
+### 3. Combine environmental targets with financial modeling
 
-The engine computes `g = −(10 − E_score) × E_weight / 100`: `E_score` is the Walk score and `E_weight` reflects the industry's aggregate emissions intensity. Raw company greenness closer to zero is greener. This environmental measure is distinct from a full ESG rating, portfolio allocation weights, and factor exposure. [Implementation](engine/src/esgx/measures/greenness.py).
+Market, size, value, profitability, investment and momentum factors support model-implied return, volatility and factor exposure estimates. Green-minus-brown (GMB) enters when sufficient data is available. The recommendation model combines financial inputs, environmental targets and a turnover penalty to propose allocations. [Model inputs](engine/src/esgx/portfolio/inputs.py) · [Recommendation logic](engine/src/esgx/portfolio/recommend.py).
 
-### Financial factors and portfolio estimates
+![Financial factors supporting portfolio return, risk and exposure estimates](docs/previews/demo-financial-factors-clean.png)
 
-![Financial factors feeding return, volatility and factor exposure estimates](docs/previews/demo-financial-factors.jpg)
+## Compare the result before making a decision
 
-Market, size, value, profitability, investment and momentum factors support model-implied return, volatility and sensitivity estimates. Green-minus-brown (GMB) enters when sufficient data is available. Factor exposure describes sensitivity to a return driver; it is different from the company's greenness characteristic. [Model inputs](engine/src/esgx/portfolio/inputs.py) · [Recommendation logic](engine/src/esgx/portfolio/recommend.py).
+Review current versus proposed environmental score, model-implied return, volatility and concentration, then inspect share counts and invested amounts. Improvements can involve trade-offs: the tool supports comparison rather than promising future returns.
 
-### Recommended portfolio
+![Current and recommended portfolios compared side by side](docs/previews/demo-comparison-clean.png)
 
-![Recommended holdings and allocations in the product demo](docs/previews/demo-recommendations.jpg)
+The hero and workspace images were captured from the deployed application on 8 October 2026. Methodology illustrations come from the demo's original animation pages; the comparison comes from the original product recording. All six images are free of video subtitle overlays. Recorded views may differ from the current deployment. Environmental analysis is distinct from a full ESG rating, and coverage depends on available data.
 
-Import current holdings, set risk tolerance and green preference, choose the investment inputs, and review the proposed allocations. The recommendation engine combines financial modeling with environmental targets and a turnover penalty.
+## Team and contributions
 
-### Compare the trade-offs
+Pachin contributed the initial frontend UI and interaction prototypes, product narrative, explanatory animations and demo video production. The integrated interface, analysis algorithms and data pipelines include other team members' work.
 
-![Current and proposed portfolio metrics compared side by side](docs/previews/demo-comparison.jpg)
+See the full demo and personal contribution walkthrough on the [Green Street project page](https://studio.pachin1919.workers.dev/work/green-street). Technical documentation is in the [analysis engine README](engine/README.md).
 
-Compare environmental score, model-implied return and volatility together. An improvement in one measure may involve a trade-off in another; the displayed estimates are not guaranteed future returns.
+## Development reference
 
-### Inspect the holding changes
+<details>
+<summary>Initial UI prototypes — setup, scope and validation</summary>
 
-![Before and after share counts and invested amounts](docs/previews/demo-holdings.jpg)
-
-Review changes in share counts, invested amounts and allocations before exporting the proposed holdings. Trades are carried out separately through the investor's broker.
-
-### Project contributions
-
-This is a team project. Pachin's contributions include the initial frontend UI and interaction prototypes, product narrative, explanatory animations, and demo video production. The integrated interface, analysis algorithms and data pipelines include other team members' work.
-
-The complete video and personal contribution walkthrough are hosted on the [Green Street project page](https://studio.pachin1919.workers.dev/work/green-street). This repository keeps the screenshots and implementation alongside their context.
-
-## Initial UI prototypes
 
 The sections below describe the original mock-data frontend prototypes, separately from the integrated product and analysis engine shown above.
 
@@ -77,10 +66,6 @@ React + TypeScript + Vite frontend with two distinct layouts:
 | --- | --- | --- |
 | Clarity blue | White and pale blue; portfolio analysis workspace | `/?v=blue` |
 | Sage green | White and pale green; guided investor experience | `/?v=green` |
-
-**Green Street**
-
-> we make your wallet and the streets green
 
 ### Run locally
 
@@ -122,3 +107,5 @@ docs/demo-guide.md  Detailed Chinese demo and implementation guide
 The frontend view model is not a confirmed backend API contract. Keep a future API adapter separate from the UI. This repository is not automatically connected to Lovable.
 
 Validation: TypeScript and production build passed; key interactions checked in a browser; both versions checked at 320, 390, 768 and 1440 px. Dependencies, build output and local browser traces are excluded from Git.
+
+</details>
