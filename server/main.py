@@ -20,7 +20,7 @@ _engine_src = str(ROOT / "engine" / "src")
 if _engine_src not in sys.path:
     sys.path.insert(0, _engine_src)
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -30,8 +30,11 @@ import numpy as np
 from esgx.config import OUTPUT_DIR, PROCESSED_DIR, RAW_DIR
 from esgx.measures.greenness import greenness
 from esgx.api.portfolio_routes import router as portfolio_router
+from esgx.api import portfolio_routes
+from esgx.api.store import DataStore
 from server.adapter import dataframe_to_companies, format_company_for_ui
 from server.dataset import load_market
+from server.provider import get_store, data_status, router as data_router
 
 app = FastAPI(
     title="Green Street Analysis Engine API",
@@ -40,6 +43,8 @@ app = FastAPI(
 )
 
 app.include_router(portfolio_router)
+app.include_router(data_router)
+app.dependency_overrides[portfolio_routes._store] = get_store
 
 # Enable CORS for local dev
 app.add_middleware(
@@ -59,12 +64,20 @@ class CsvUploadRequest(BaseModel):
     csv_text: str
 
 
-def load_latest_dataset(market: str = "all") -> pd.DataFrame:
+def load_latest_dataset(market: str = "all", store: DataStore | None = None) -> pd.DataFrame:
     """Load scored companies from outputs: one market, or by default ALL markets at once
     (Hong Kong incl. HKEX-listed mainland China + Taiwan, region kept per row)."""
-    frames = [df for m in (("hk", "tw") if market == "all" else (market,)) if (df := load_market(m)) is not None]
+    store = store if store is not None else get_store()
+    frames = [df for m in (("hk", "tw") if market == "all" else (market,))
+              if (df := load_market(m, store.outputs, store.raw)) is not None and not df.empty]
     if frames:
         return pd.concat(frames, ignore_index=True)
+    if getattr(store, "dataset_id", "builtin") != "builtin":
+        return pd.DataFrame()
+    if market != "all" and any(load_market(m, store.outputs, store.raw) is not None for m in ("hk", "tw") if m != market):
+        return pd.DataFrame()
+    if any(path.exists() for path in store._paths().values()):
+        return pd.DataFrame()
 
     # Otherwise load baseline representative demo scoring based on real HK/TW companies
     sample_metrics = [
@@ -74,50 +87,58 @@ def load_latest_dataset(market: str = "all") -> pd.DataFrame:
         {"firm_id": "0857.HK", "name": "PetroChina Company", "ticker": "0857.HK", "sector": "Energy", "region": "Mainland China", "e_score": 4.3, "e_weight": 50, "carbon": 4.1, "walk": 4.6, "talk": 7.5, "greenwasher": 1, "greenhusher": 0, "gap": 2.9},
         {"firm_id": "0992.HK", "name": "Lenovo Group", "ticker": "0992.HK", "sector": "Technology", "region": "Hong Kong", "e_score": None, "e_weight": 20, "carbon": None, "walk": None, "talk": None, "greenwasher": 0, "greenhusher": 0, "gap": None},
     ]
-    return pd.DataFrame(sample_metrics)
+    demo = pd.DataFrame(sample_metrics)
+    if market != "all":
+        demo = demo[demo.firm_id.str.endswith(".HK" if market == "hk" else ".TW")]
+    demo["data_mode"] = "demo"
+    return demo
 
 
 @app.get("/api/health")
-def health() -> dict[str, Any]:
+def health(store: DataStore = Depends(get_store)) -> dict[str, Any]:
     """Report health and status of the analysis engine."""
+    data = data_status(store)
     return {
         "status": "healthy",
         "engine": "esgx-analysis-engine",
         "version": "0.4.0",
         "data_dirs": {
-            "raw": str(RAW_DIR),
-            "processed": str(PROCESSED_DIR),
-            "outputs": str(OUTPUT_DIR),
+            "raw": str(store.raw),
+            "processed": str(store.processed),
+            "outputs": str(store.outputs),
         },
         "capabilities": {
-            "liveData": True,
+            "liveData": False,
+            "snapshotData": data["mode"] == "snapshot",
+            "datasetImport": True,
             "portfolioScore": True,
             "recalculation": True,
             "returnForecast": False,  # Hypothesis under research
             "csvUpload": True,
         },
         "markets_available": {
-            "hk": (OUTPUT_DIR / "det_greenwashing_hk.csv").exists(),
-            "tw": (OUTPUT_DIR / "det_greenwashing_tw.csv").exists(),
+            "hk": data["markets"]["hk"]["status"] == "snapshot",
+            "tw": data["markets"]["tw"]["status"] == "snapshot",
         },
+        "data": data,
     }
 
 
 @app.get("/api/companies")
-def get_companies(market: str = "all") -> list[dict[str, Any]]:
+def get_companies(market: str = "all", store: DataStore = Depends(get_store)) -> list[dict[str, Any]]:
     """Return scored companies formatted for the Green Street UI: all markets by default
     (HK incl. mainland China + Taiwan), or one market via market=hk|tw."""
     if market not in ("hk", "tw", "all"):
         raise HTTPException(400, f"unknown market {market!r} (hk, tw or all)")
-    df = load_latest_dataset(market)
-    weights = [28.0, 20.0, 24.0, 16.0, 12.0] if len(df) == 5 else None
+    df = load_latest_dataset(market, store)
+    weights = [28.0, 20.0, 24.0, 16.0, 12.0] if len(df) == 5 and "data_mode" in df else None
     return dataframe_to_companies(df, default_weights=weights)
 
 
 @app.get("/api/companies/{company_id}")
-def get_company_detail(company_id: str) -> dict[str, Any]:
+def get_company_detail(company_id: str, store: DataStore = Depends(get_store)) -> dict[str, Any]:
     """Return detailed metrics for a specific company."""
-    companies = get_companies()
+    companies = get_companies(store=store)
     comp = next((c for c in companies if c["id"].lower() == company_id.lower()), None)
     if not comp:
         raise HTTPException(status_code=404, detail=f"Company '{company_id}' not found")
@@ -136,8 +157,9 @@ def get_company_detail(company_id: str) -> dict[str, Any]:
             "walk_action_rank": comp["walk"],
             "talk_disclosure_rank": comp["talk"],
             "gap": comp.get("gap"),
-            "greenwasher": comp.get("greenwasher", False),
-            "greenhusher": comp.get("greenhusher", False),
+            "greenwasher": comp.get("greenwasher"),
+            "greenhusher": comp.get("greenhusher"),
+            "assessment_status": comp["assessment_status"],
         },
         "methodology": {
             "formula": "g = -(10 - E_score) * E_weight / 100",
@@ -148,9 +170,9 @@ def get_company_detail(company_id: str) -> dict[str, Any]:
 
 
 @app.post("/api/portfolio/analyze")
-def analyze_portfolio(req: PortfolioRequest) -> dict[str, Any]:
+def analyze_portfolio(req: PortfolioRequest, store: DataStore = Depends(get_store)) -> dict[str, Any]:
     """Perform real-time portfolio greenness, carbon, and greenwash risk calculation."""
-    companies = {c["id"]: c for c in get_companies()}
+    companies = {c["id"]: c for c in get_companies(store=store)}
     allocs = req.allocations
 
     total_weight = sum(allocs.values())
@@ -231,7 +253,7 @@ def get_sample_csv() -> str:
 
 
 @app.post("/api/portfolio/upload-csv")
-def upload_portfolio_csv(req: CsvUploadRequest) -> dict[str, Any]:
+def upload_portfolio_csv(req: CsvUploadRequest, store: DataStore = Depends(get_store)) -> dict[str, Any]:
     """Parse an uploaded CSV of portfolio holdings and match against universe and emissions database."""
     lines = [line.strip() for line in req.csv_text.strip().splitlines() if line.strip()]
     if not lines:
@@ -285,7 +307,7 @@ def upload_portfolio_csv(req: CsvUploadRequest) -> dict[str, Any]:
         normalized_weights[0] = round(normalized_weights[0] + diff, 1)
 
     # Match tickers against latest scored dataset
-    db = load_latest_dataset()
+    db = load_latest_dataset(store=store)
     db_by_ticker = {str(r.get("ticker", "")).upper(): r for _, r in db.iterrows()}
     db_by_id = {str(r.get("firm_id", "")).upper(): r for _, r in db.iterrows()}
 
@@ -337,7 +359,7 @@ def get_methodology() -> dict[str, Any]:
         "title": "Green Street Quantitative ESG Methodology",
         "pillars": {
             "carbon": "Scope 1 & Scope 2 GHG emissions intensity per unit revenue, 18-month reporting lag applied",
-            "walk": "Documented emission reduction actions, trend trajectory, and audited disclosures (0-10 percentile)",
+            "walk": "Emissions action measures and disclosure evidence (0-10 percentile); independent assurance is not presumed",
             "talk": "Green-claim word intensity in regulatory filings purged of risk vocabulary (0-10 percentile)",
             "greenwashing_gap": "Talk - Walk spread with double-sort greenwashing identification (Giannetti 2023, Chen 2025)",
         },

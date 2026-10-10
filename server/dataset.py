@@ -16,13 +16,14 @@ WALK_COLS = ("walk", "walk_intensity_level", "intensity", "sector")
 SCOPE_DOMICILES = {"Hong Kong", "China", "Macau", "Taiwan"}
 
 
-def _universe(market: str) -> pd.DataFrame:
+def _universe(market: str, raw=None) -> pd.DataFrame:
     """All universe files of the market stacked, first occurrence of a firm wins."""
-    frames = [pd.read_parquet(RAW_DIR / n) for n in UNIVERSE_FILES[market] if (RAW_DIR / n).exists()]
+    raw = RAW_DIR if raw is None else raw
+    frames = [pd.read_parquet(raw / n) for n in UNIVERSE_FILES[market] if (raw / n).exists()]
     if not frames:
         return pd.DataFrame(columns=["firm_id", "name"])
     univ = pd.concat(frames, ignore_index=True).drop_duplicates("firm_id")
-    return univ[["firm_id", "name"] + [c for c in ("ticker", "domicile", "sector") if c in univ.columns]]
+    return univ[["firm_id", "name"] + [c for c in ("ticker", "domicile", "sector", "exchange") if c in univ.columns]]
 
 
 def _region(df: pd.DataFrame, market: str) -> pd.Series:
@@ -45,25 +46,24 @@ def _fill_from(df: pd.DataFrame, path, cols: tuple[str, ...], on: list[str]) -> 
     return df
 
 
-def load_market(market: str) -> pd.DataFrame | None:
+def load_market(market: str, outputs=None, raw=None) -> pd.DataFrame | None:
     """Latest scored year per firm for one market, or None when the market has no output yet.
 
     A firm is listed as soon as it has greenness (E-score), with walk from the walk table;
     talk, gap and the flags stay missing until the greenwashing table covers it, so every
     firm the optimizer can recommend on greenness is also searchable."""
-    det, green = OUTPUT_DIR / f"det_greenwashing_{market}.csv", OUTPUT_DIR / f"det_greenness_{market}.csv"
+    outputs = OUTPUT_DIR if outputs is None else outputs
+    det, green = outputs / f"det_greenwashing_{market}.csv", outputs / f"det_greenness_{market}.csv"
     if not det.exists() and not green.exists():
         return None
-    df = (pd.read_csv(det).sort_values("year").drop_duplicates("firm_id", keep="last") if det.exists()
+    df = (pd.read_csv(det).drop_duplicates(["firm_id", "year"], keep="last") if det.exists()
           else pd.DataFrame(columns=["firm_id", "year"]))
     if green.exists():
         g = pd.read_csv(green)[["firm_id", "year", "e_score", "e_weight"]].drop_duplicates(["firm_id", "year"])
-        df = df.merge(g, on=["firm_id", "year"], how="left")
-        only_green = g.sort_values("year").drop_duplicates("firm_id", keep="last")
-        only_green = only_green[~only_green["firm_id"].isin(df["firm_id"])]
-        df = pd.concat([df, only_green], ignore_index=True) if len(df) else only_green
-    df = _fill_from(df, OUTPUT_DIR / f"det_walk_{market}.csv", WALK_COLS, on=["firm_id", "year"])
-    df = df.merge(_universe(market), on="firm_id", how="left", suffixes=("", "_univ"))
+        df = df.merge(g, on=["firm_id", "year"], how="outer")
+    df = df.sort_values("year").drop_duplicates("firm_id", keep="last")
+    df = _fill_from(df, outputs / f"det_walk_{market}.csv", WALK_COLS, on=["firm_id", "year"])
+    df = df.merge(_universe(market, raw), on="firm_id", how="left", suffixes=("", "_univ"))
     if "sector_univ" in df.columns:
         df["sector"] = df["sector"].fillna(df.pop("sector_univ"))
     if "ticker" not in df.columns:

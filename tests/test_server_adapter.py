@@ -8,7 +8,11 @@ import pandas as pd
 
 
 @pytest.fixture
-def client():
+def client(tmp_path, monkeypatch):
+    from server import provider
+    for area in ("outputs", "raw", "processed"):
+        (tmp_path / area).mkdir()
+    monkeypatch.setattr(provider, "_builtin", provider.SnapshotStore(outputs=tmp_path / "outputs", raw=tmp_path / "raw", processed=tmp_path / "processed"))
     return TestClient(app)
 
 
@@ -38,7 +42,9 @@ def test_api_health(client):
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "healthy"
-    assert data["capabilities"]["liveData"] is True
+    assert data["capabilities"]["liveData"] is False
+    assert data["data"]["mode"] == "demo"
+    assert data["data"]["snapshot_date"] is None
 
 
 def test_api_companies(client):
@@ -88,8 +94,7 @@ def test_api_companies_one_scored_row_per_firm(client):
     ids = [c["id"] for c in companies]
     assert len(ids) == len(set(ids))
     assert all(c["region"] != "nan" and c["name"] != "nan" for c in companies)
-    # every firm with a walk score carries the same number as its E_score (E_score IS walk)
-    assert all(c["score"] == c["walk"] for c in companies if c["walk"] is not None)
+    assert all(c["assessment_status"] in ("assessed", "insufficient_data") for c in companies)
 
 
 def test_firms_with_greenness_only_are_listed(tmp_path, monkeypatch):
@@ -116,7 +121,8 @@ def test_firms_with_greenness_only_are_listed(tmp_path, monkeypatch):
     assert tsmc["name"] == "TSMC" and tsmc["sector"] == "Semiconductor" and tsmc["region"] == "Taiwan"
     assert tsmc["score"] == 7.0  # latest greenness year
     assert tsmc["walk"] == 6.5 and tsmc["carbon"] == 6.0  # walk table, same year as the greenness row
-    assert tsmc["talk"] is None and tsmc["gap"] is None and tsmc["greenwasher"] is False
+    assert tsmc["talk"] is None and tsmc["gap"] is None and tsmc["greenwasher"] is None
+    assert tsmc["assessment_status"] == "insufficient_data"
     (out / "det_greenwashing_tw.csv").unlink()
     assert len(dataset.load_market("tw")) == 2  # greenness alone is enough
     (out / "det_greenness_tw.csv").unlink()
