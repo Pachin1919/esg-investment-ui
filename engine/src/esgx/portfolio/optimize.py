@@ -10,9 +10,37 @@ not a usable mu (Merton 1980). SLSQP via scipy; no new dependency.
 
 from __future__ import annotations
 
+from importlib import import_module
+from threading import Lock
+
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
+
+_CVXPY_UNLOADED = object()
+_CVXPY_BACKEND = _CVXPY_UNLOADED
+_CVXPY_IMPORT_LOCK = Lock()
+
+
+def _load_cvxpy():
+    """Initialize the optional solver once per process, before concurrent requests use it.
+
+    Native dependency import failures can leave a partial module visible to another
+    thread. Serialize initialization and require the complete public API; an unavailable
+    backend keeps the existing SLSQP fallback. Installing/repairing it requires a restart.
+    """
+    global _CVXPY_BACKEND
+    with _CVXPY_IMPORT_LOCK:
+        if _CVXPY_BACKEND is _CVXPY_UNLOADED:
+            try:
+                backend = import_module("cvxpy")
+            except ImportError:
+                backend = None
+            required = ("Variable", "Problem", "Maximize", "quad_form", "psd_wrap", "norm1", "sum")
+            if backend is not None and not all(callable(getattr(backend, name, None)) for name in required):
+                backend = None
+            _CVXPY_BACKEND = backend
+        return _CVXPY_BACKEND
 
 
 def _beta_frame(betas: pd.DataFrame) -> pd.DataFrame:
@@ -26,9 +54,8 @@ def _solve_cvxpy(m, S, z, gamma, lam, kappa, scale, w0v, w_max, w_sum, g_floor_v
     the d+/d- split and its 2n extra variables and 2n constraints disappear — SLSQP scales
     cubically in (variables + constraints) and crawls past a few hundred names, CLARABEL
     does not. Returns the weight vector, or None when cvxpy is unavailable or fails."""
-    try:
-        import cvxpy as cp
-    except ImportError:
+    cp = _load_cvxpy()
+    if cp is None:
         return None
     n = len(m)
     w = cp.Variable(n)

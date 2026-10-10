@@ -1,0 +1,20 @@
+{
+  "USDHKD": {
+    "source": "European Central Bank reference rates via Frankfurter ECB provider",
+    "url": "https://api.frankfurter.dev/v2/providers/ecb/rates?from=2009-11-01&to=2026-09-30&base=USD&quotes=HKD",
+    "retrieved_on": "2026-10-10",
+    "units": "HKD per USD",
+    "aggregation": "Last daily observation within each calendar month; no forward filling across months",
+    "first_month": "2009-11",
+    "last_month": "2026-09",
+    "months": 203,
+    "is_latest_verified": false
+  },
+  "TWDHKD": {
+    "source": "Pre-existing project FX snapshot; preserved without modification",
+    "units": "HKD per TWD",
+    "first_month": "2009-12",
+    "last_month": "2026-10",
+    "is_latest_verified": false
+  }
+}

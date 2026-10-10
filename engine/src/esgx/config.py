@@ -41,6 +41,7 @@ def anthropic_client():
 START_YEAR = 2010
 END_YEAR = 2025
 
-# Emissions for year t are published by EPA roughly in October of t+1.
-# We let year-t data become "known" from July of t+1 (conservative, FF-style timing).
-EMISSIONS_PUBLICATION_LAG_MONTHS = 18
+# Fallback availability assumption: fiscal-year-end December + seven months = July t+1.
+# This is a modeling convention, not an assertion of actual publication dates. A supplied
+# available_date takes precedence (and is used only after its month has completed).
+EMISSIONS_PUBLICATION_LAG_MONTHS = 7

@@ -20,6 +20,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import pandas as pd
+import numpy as np
 
 from esgx.factors.gmb import gmb_regression
 from esgx.factors.timeseries import FF5_MOM
@@ -50,10 +51,19 @@ def to_base_currency(prices: pd.DataFrame, fx: pd.DataFrame) -> pd.DataFrame:
     base-currency return compounds the local return with the currency return; months
     without an FX return are dropped rather than left in the listing currency."""
     fx = fx.assign(month=to_month(fx["month"])).sort_values("month")
-    fx["fx_ret"] = fx["rate"].pct_change()
+    if fx["month"].duplicated().any():
+        raise ValueError("FX must have exactly one rate per month")
+    if not np.isfinite(fx["rate"]).all() or (fx["rate"] <= 0).any():
+        raise ValueError("FX rates must be finite and strictly positive")
+    fx["fx_ret"] = fx["rate"].pct_change(fill_method=None)
+    # A missing calendar month cannot turn a multi-month change into a monthly return.
+    consecutive = fx["month"].astype("int64").diff().eq(1)
+    fx["fx_ret"] = fx["fx_ret"].where(consecutive)
     out = prices.assign(month=to_month(prices["month"])).merge(fx[["month", "rate", "fx_ret"]], on="month", how="left")
     out["ret"] = (1 + out["ret"]) * (1 + out["fx_ret"]) - 1
     out["mktcap"] = out["mktcap"] * out["rate"]
+    if "close" in out:
+        out["close"] = out["close"] * out["rate"]
     return out.dropna(subset=["ret"]).drop(columns=["rate", "fx_ret"]).reset_index(drop=True)
 
 
@@ -62,11 +72,24 @@ def market_inputs(prices: pd.DataFrame, factors: pd.DataFrame, green: pd.DataFra
     greenness table supports it (>= 30 scored names and >= 24 factor months)."""
     prices, factors = prices.copy(), factors.copy()
     prices["month"], factors["month"] = to_month(prices["month"]), to_month(factors["month"])
-    factors = factors.sort_values("month")
+    factors = factors.sort_values("month").dropna(subset=list(FF5_MOM) + ["rf"])
+    if factors["month"].duplicated().any() or prices.duplicated(["firm_id", "month"]).any():
+        raise ValueError("model inputs contain duplicate firm/month or factor/month rows")
+    # Inputs are decimal simple returns. Reject invalid units; never infer percent units.
+    if ((prices["ret"].dropna() < -1).any()
+            or not np.isfinite(prices["ret"].dropna()).all()
+            or not np.isfinite(factors[list(FF5_MOM) + ["rf"]]).all().all()
+            or (factors[list(FF5_MOM) + ["rf"]].abs() > 1).any().any()):
+        raise ValueError("model returns must be finite decimal returns (0.01 = 1%); check source units")
+    common = sorted(set(prices["month"]) & set(factors["month"]))
+    if not common:
+        raise ValueError("no common price and factor months")
+    prices = prices[prices["month"].isin(common)]
+    factors = factors[factors["month"].isin(common)]
     green = green.drop_duplicates(["firm_id", "year"])
-    g = green.sort_values("year").groupby("firm_id").tail(1).set_index("firm_id")["g"]
-
-    g_m = align_annual_to_months(green[["firm_id", "year", "g"]], prices["month"].unique())
+    annual_cols = ["firm_id", "year", "g"] + (["available_date"] if "available_date" in green else [])
+    g_m = align_annual_to_months(green[annual_cols], pd.PeriodIndex(common, freq="M"))
+    g = g_m[g_m["month"] == max(common)].set_index("firm_id")["g"]
     panel = prices.merge(g_m[["firm_id", "month", "g"]], on=["firm_id", "month"], how="left")
     gmb_df = gmb_regression(panel, factors, min_n=30)
     n_gmb = int(gmb_df["gmb_reg"].notna().sum()) if not gmb_df.empty else 0
@@ -76,6 +99,9 @@ def market_inputs(prices: pd.DataFrame, factors: pd.DataFrame, green: pd.DataFra
         factors = factors.merge(gmb_df[["month", "gmb_reg"]].rename(columns={"gmb_reg": "gmb"}),
                                 on="month", how="left")
     cols = list(FF5_MOM) + (["gmb"] if use_gmb else [])
+    # Coverage and pooled z-scores describe the modeled universe, not every firm in
+    # the annual source table (which may include firms with no usable price history).
+    g = g.reindex(betas.index)
     return ModelInputs(betas, g, factors[["month"] + cols], cols, n_gmb if use_gmb else 0)
 
 

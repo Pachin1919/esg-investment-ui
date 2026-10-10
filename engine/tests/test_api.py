@@ -141,6 +141,7 @@ def _portfolio_store(tmp_path):
         "mom": rng.normal(0, 0.02, T), "rf": 0.002,
     })
     fac.to_parquet(raw / "factors_monthly_asia_pacific_ex_japan.parquet")
+    pd.DataFrame({"month": months, "pair": "USDHKD", "rate": 7.8}).to_parquet(raw / "fx_monthly.parquet")
     rows = []
     for i in range(n):
         for t, m in enumerate(months):
