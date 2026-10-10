@@ -1,16 +1,19 @@
 import { useState } from "react";
 import { ArrowRight, CaretDown, ChartDonut, CheckCircle, Leaf, MagnifyingGlass, Sparkle, X } from "@phosphor-icons/react";
 import type { Recommendation, SectorOption } from "./api";
+import { modelContext } from "./api";
 import IndustryDropdown from "./IndustryDropdown";
 import { CompanyInfo, InfoPopover, metricExplanations } from "./InfoPopover";
 import { MIN_WEIGHT, newCapital, sectorColor, toHolding, tradeAction } from "./live";
 import type { Plan, Universe } from "./live";
 import { displayTicker, metrics, money, percent, score, totalValue, unitMoney } from "./portfolio";
 import type { Portfolio } from "./portfolio";
+import dataStyles from "./DataWorkspace.module.css";
 
 type Props = {
   baseline: Portfolio; universe: Universe; sectors: SectorOption[]; maximum: number; plan: Plan;
   rec: Recommendation | null; portfolio: Portfolio | null; loading: boolean; error: string;
+  dataStatusLabel: string; disabled: boolean;
   onPlanChange: (plan: Plan) => void;
 };
 const collapsedCompanyLimit = 6;
@@ -29,7 +32,7 @@ function AllocationChart({ portfolio }: { portfolio: Portfolio }) {
   </div>;
 }
 
-export default function RecommendationsBuilder({ baseline, universe, sectors, maximum, plan, rec, portfolio, loading, error, onPlanChange }: Props) {
+export default function RecommendationsBuilder({ baseline, universe, sectors, maximum, plan, rec, portfolio, loading, error, dataStatusLabel, disabled, onPlanChange }: Props) {
   const [focus, setFocus] = useState<string[] | null>(plan.industries);
   const [tolerance, setTolerance] = useState(String(plan.tolerancePercent));
   const [query, setQuery] = useState(""), [formError, setFormError] = useState("");
@@ -59,7 +62,7 @@ export default function RecommendationsBuilder({ baseline, universe, sectors, ma
         </div>
         {dirty && <p className="builder-draft-note">Setup changed. Generate again to apply it.</p>}
         {(formError || error) && <p className="form-error" role="alert">{formError || error}</p>}
-        <button type="submit" className="button primary generate-recommendations" disabled={loading}><Sparkle size={18} />{loading ? "Optimising…" : "Generate recommendations"} <ArrowRight size={17} /></button>
+        <button type="submit" className="button primary generate-recommendations" disabled={loading || disabled}><Sparkle size={18} />{loading ? "Optimising…" : "Generate recommendations"} <ArrowRight size={17} /></button>
         <p className="builder-footnote">Only the ticked industries are bought or rebalanced. Holdings outside them are left untouched.</p>
       </form>
     </section>
@@ -83,17 +86,17 @@ export default function RecommendationsBuilder({ baseline, universe, sectors, ma
     </section>
 
     <section className="workspace-panel builder-portfolio" aria-labelledby="live-portfolio-heading">
-      <div className="builder-panel-heading"><span className="builder-step">03</span><div><h2 id="live-portfolio-heading">Your portfolio</h2></div><span className="live-indicator"><i />Live</span></div>
+      <div className="builder-panel-heading"><span className="builder-step">03</span><div><h2 id="live-portfolio-heading">Your portfolio</h2></div><span className={dataStyles.snapshotIndicator} title={dataStatusLabel}>{dataStatusLabel.startsWith("Latest database data") ? "Database" : dataStatusLabel.split(" · ")[0]}</span></div>
       {!portfolio || !rec ? <div className="builder-empty"><ChartDonut size={34} /><h3>See your choices come together.</h3><p>Your recommended holdings, performance and sector allocation will appear here.</p></div> : <>
         <div className="live-portfolio-value"><InfoPopover label="Portfolio value" content={<><strong>Portfolio value</strong><p>{metricExplanations["Portfolio value"]}</p></>}>Portfolio value</InfoPopover><strong aria-live="polite" aria-atomic="true">{money(rec.target_capital, portfolio.baseCurrency)}</strong></div>
         <div className="live-portfolio-metrics">{[
-          ["Expected return · annual", percent(rec.after.ann_ret), "Model-implied return"],
+          ["Expected return · annual", percent(rec.after.ann_ret), "USD excess return · annual"],
           ["Portfolio green score", score(summary!.greenScore.value), "Environmental score"],
-          ["Portfolio volatility", percent(rec.after.ann_vol, 1), "Portfolio risk"],
+          ["Portfolio volatility", percent(rec.after.ann_vol, 1), "USD volatility · annual"],
         ].map(([key, value, label]) => <div key={key}><InfoPopover label={key} content={<><strong>{label}</strong><p>{metricExplanations[key]}</p></>}>{label}</InfoPopover><strong>{value}</strong></div>)}</div>
         <div className="portfolio-budget-note"><span>Volatility target <strong>{percent(rec.params.vol_target_ann, 0)}</strong></span><span>New money <strong>{money(rec.new_capital, portfolio.baseCurrency)}</strong></span></div>
         <h3 className="builder-subheading">Sector allocation</h3><AllocationChart portfolio={portfolio} />
-        <p className="builder-footnote">Shares are whole numbers at the latest close; board lots are not modeled.</p>
+        <p className="builder-footnote">{modelContext(rec)} Shares use dated database closes and FX; board lots are not modeled.</p>
       </>}
     </section>
   </div>;

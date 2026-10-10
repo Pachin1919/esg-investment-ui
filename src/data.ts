@@ -5,6 +5,11 @@ export type Company = {
   ticker: string;
   sector: string;
   region: string;
+  listing_market?: string;
+  listing_currency?: string;
+  domicile?: string;
+  model_proxy?: string;
+  assessment_status?: string;
   allocation: number;
   score: number | null;
   materiality: number;
@@ -12,8 +17,8 @@ export type Company = {
   walk: number | null;
   talk: number | null;
   gap?: number | null;
-  greenwasher?: boolean;
-  greenhusher?: boolean;
+  greenwasher?: boolean | null;
+  greenhusher?: boolean | null;
   color: string;
   initials: string;
   note: string;

@@ -1,4 +1,5 @@
 import type { Company } from "./data";
+import { datasetFetch } from "./dataset";
 
 export type HealthStatus = {
   status: string;
@@ -39,7 +40,7 @@ export type UploadCsvResult = {
 
 export async function fetchHealth(): Promise<HealthStatus | null> {
   try {
-    const res = await fetch("/api/health");
+    const res = await datasetFetch("/api/health");
     if (!res.ok) return null;
     return await res.json();
   } catch {
@@ -49,7 +50,7 @@ export async function fetchHealth(): Promise<HealthStatus | null> {
 
 export async function fetchCompanies(market: "hk" | "tw" | "all" = "all"): Promise<Company[] | null> {
   try {
-    const res = await fetch(`/api/companies?market=${market}`);
+    const res = await datasetFetch(`/api/companies?market=${market}`);
     if (!res.ok) return null;
     return await res.json();
   } catch {
@@ -61,7 +62,7 @@ export async function analyzePortfolioApi(
   allocations: Record<string, number>
 ): Promise<PortfolioAnalysis | null> {
   try {
-    const res = await fetch("/api/portfolio/analyze", {
+    const res = await datasetFetch("/api/portfolio/analyze", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ allocations }),
@@ -75,7 +76,7 @@ export async function analyzePortfolioApi(
 
 export async function uploadPortfolioCsv(csv_text: string): Promise<UploadCsvResult> {
   try {
-    const res = await fetch("/api/portfolio/upload-csv", {
+    const res = await datasetFetch("/api/portfolio/upload-csv", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ csv_text }),
@@ -104,7 +105,7 @@ export async function uploadPortfolioCsv(csv_text: string): Promise<UploadCsvRes
 
 export async function fetchSampleCsv(): Promise<string> {
   try {
-    const res = await fetch("/api/portfolio/sample-csv");
+    const res = await datasetFetch("/api/portfolio/sample-csv");
     if (res.ok) return await res.text();
   } catch {}
   return "ticker,allocation\n0002.HK,28\n0066.HK,20\n2330.TW,24\n0857.HK,16\n0992.HK,12\n";
@@ -148,6 +149,14 @@ export type Trade = {
 };
 
 export type Recommendation = {
+  dataset_id?: string;
+  capital_currency?: string;
+  pricing_currency?: string;
+  base_currency?: string;
+  model_currency?: string;
+  return_basis?: string;
+  model_period?: { start: string | null; end: string | null; n_months: number };
+  pricing_timing?: Record<string, { price_date: string | null; fx_month: string | null }>;
   params: { vol_target_ann: number | null; g_target_pctl: number | null; n_candidates: number };
   total_capital: number;
   new_capital: number;
@@ -159,16 +168,24 @@ export type Recommendation = {
   unmodeled: { firm_id: string; capital: number; weight: number }[];
 };
 
+export function modelContext(rec: Recommendation) {
+  const currency = rec.model_currency || "currency unavailable";
+  const basis = rec.return_basis === "excess" ? "excess return" : rec.return_basis || "return basis unavailable";
+  const period = rec.model_period?.start && rec.model_period.end ? ` · observations ${rec.model_period.start} – ${rec.model_period.end}` : "";
+  return `Model: ${currency}-based ${basis} and risk${period}. Capital and prices: ${rec.capital_currency || "HKD"}.`;
+}
+
 export async function recommendPortfolio(body: {
   holdings: Record<string, number>;
   risk_score: number;
   green_score: number;
   max_new_capital: number;
   market: "hk" | "tw" | "all";
+  capital_currency?: "HKD";
   filters?: { include_industries: string[] };
 }): Promise<Recommendation | { error: string }> {
   try {
-    const res = await fetch("/api/portfolio/recommend", {
+    const res = await datasetFetch("/api/portfolio/recommend", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -187,7 +204,7 @@ export type SectorOption = { sector: string; n: number; industries: { industry: 
 
 export async function fetchFilterOptions(market: "hk" | "tw" | "all"): Promise<SectorOption[]> {
   try {
-    const res = await fetch(`/api/portfolio/filters?market=${market}`);
+    const res = await datasetFetch(`/api/portfolio/filters?market=${market}`);
     if (!res.ok) return [];
     return (await res.json()).sectors ?? [];
   } catch {

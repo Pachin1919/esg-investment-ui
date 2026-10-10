@@ -41,8 +41,8 @@ function Changes({ result, currency }: { result: Recommendation; currency: strin
   const largest = [...traded].sort((a, b) => Math.abs(b.capital_delta) - Math.abs(a.capital_delta)).slice(0, 3);
   return <>
     <div className={styles.key}><span><i />Current</span><span><i />Recommended</span></div>
-    <MetricChange label="Model-implied annual return" before={result.before.ann_ret} after={result.after.ann_ret} format={v => percent(v, 1)} hint="An estimate from the factor model, not a guaranteed return." />
-    <MetricChange label="Annual volatility" before={result.before.ann_vol} after={result.after.ann_vol} format={v => percent(v, 1)} hint="Lower means less modeled fluctuation." />
+    <MetricChange label="USD excess return · annual" before={result.before.ann_ret} after={result.after.ann_ret} format={v => percent(v, 1)} hint="Model-implied return above the risk-free rate, on a USD basis; monetary holdings remain in HKD." />
+    <MetricChange label="USD volatility · annual" before={result.before.ann_vol} after={result.after.ann_vol} format={v => percent(v, 1)} hint="USD-based risk. Lower means less modeled fluctuation." />
     <MetricChange label="Largest position" before={result.before.top_weight} after={result.after.top_weight} format={v => percent(v, 1)} hint="A smaller largest holding can reduce concentration." />
     <details className={styles.industryDetails}><summary>Environmental measure</summary><MetricChange label="Modeled greenness" before={result.before.g_avg} after={result.after.g_avg} format={v => v.toFixed(2)} hint="Higher is greener. This industry-weighted model measure is distinct from the company E-score." /></details>
     <p className={styles.note}>Each line uses its own scale. Risk and return cover holdings with estimated factor exposures, weighted against total portfolio capital.</p>

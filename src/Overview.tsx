@@ -13,9 +13,9 @@ const MAX_HITS = 25;
 export function MetricCards({ portfolio, stats }: { portfolio: Portfolio; stats: PortfolioStats | null }) {
   const m = metrics(portfolio);
   const cards = [
-    ["Expected return", "Expected return · annual", percent(stats?.ann_ret ?? null), "Model-implied annual return", SquaresFour],
+    ["USD excess return", "Expected return · annual", percent(stats?.ann_ret ?? null), "Model-implied · annual · USD basis", SquaresFour],
     ["Portfolio green score", "Portfolio green score", score(m.greenScore.value), "Environmental performance", Leaf],
-    ["Portfolio volatility", "Portfolio volatility", percent(stats?.ann_vol ?? null, 1), "Portfolio risk", Gauge],
+    ["USD volatility", "Portfolio volatility", percent(stats?.ann_vol ?? null, 1), "Annual risk · USD basis", Gauge],
   ] as const;
   return <div className="workspace-metrics">{cards.map(([label, key, value, description, Icon]) => <article className="workspace-metric" key={key}><div><InfoPopover label={label} content={<><strong>{label}</strong><p>{metricExplanations[key]}</p></>}>{label}</InfoPopover><Icon /></div><strong>{value}</strong><p>{description}</p></article>)}</div>;
 }
@@ -34,11 +34,11 @@ export function UniverseSearch({ universe, portfolio }: { universe: Universe; po
   const held = new Set(portfolio?.holdings.map(h => h.ticker));
   const words = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
   const hits = words.length ? [...universe.values()].filter(c => words.every(w => `${c.name} ${c.ticker} ${c.sector} ${c.region}`.toLowerCase().includes(w))) : [];
-  return <section className="workspace-panel"><div className="panel-heading"><div><h2>All companies</h2><p>Look up any of the {universe.size} scored companies, held or not.</p></div></div>
+  return <section className="workspace-panel"><div className="panel-heading"><div><h2>All companies</h2><p>Look up any of the {universe.size} companies in this dataset and listing market, held or not.</p></div></div>
     <div className="builder-company-tools"><div className="company-keyword-input"><MagnifyingGlass size={19} /><input aria-label="Search all companies" placeholder="Search company, ticker, sector or market" value={query} onChange={e => setQuery(e.target.value)} />{query && <button type="button" aria-label="Clear company search" onClick={() => setQuery("")}><X size={16} /></button>}</div></div>
     {hits.length > 0 && <div className="table-scroll"><table className="analysis-table"><thead><tr><th>Company</th><th>Sector</th><th>Market</th><th>E-score</th><th>Talk</th><th>Talk–walk gap</th><th>In portfolio</th></tr></thead>
       <tbody>{hits.slice(0, MAX_HITS).map(c => <tr key={c.id}><td><div className="holding-company"><i style={{ background: c.color }}>{c.initials}</i><span><CompanyInfo company={toHolding(c, 0)} /><small>{c.ticker}{c.greenwasher ? " · Greenwash risk" : c.greenhusher ? " · Quiet action" : ""}</small></span></div></td>
-        <td>{c.sector}</td><td>{c.region}</td><td>{score(c.score)}</td><td>{score(c.talk)}</td><td>{c.gap == null ? "Unavailable" : `${c.gap > 0 ? "+" : ""}${c.gap.toFixed(1)}`}</td><td>{held.has(c.ticker) ? "Held" : "Not held"}</td></tr>)}</tbody></table></div>}
+        <td>{c.sector}</td><td>{c.listing_market === "hk" || c.ticker.endsWith(".HK") ? "Hong Kong" : "Taiwan"}</td><td>{score(c.score)}</td><td>{c.talk == null ? "Insufficient data" : score(c.talk)}</td><td>{c.gap == null ? "Insufficient data" : `${c.gap > 0 ? "+" : ""}${c.gap.toFixed(1)}`}</td><td>{held.has(c.ticker) ? "Held" : "Not held"}</td></tr>)}</tbody></table></div>}
     {hits.length > MAX_HITS && <p className="builder-footnote">Showing {MAX_HITS} of {hits.length} matches. Refine the search to narrow it down.</p>}
     {words.length > 0 && !hits.length && <p className="builder-search-empty" role="status">No matching companies. Try another keyword.</p>}
   </section>;

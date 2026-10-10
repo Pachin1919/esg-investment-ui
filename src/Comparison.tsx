@@ -23,8 +23,8 @@ export function performanceRows(baseline: Portfolio, result: Portfolio, before: 
   const a = metrics(baseline), b = metrics(result), ccy = baseline.baseCurrency;
   return [
     { label: "Portfolio value", info: "Portfolio value", before: totalValue(baseline), after: totalValue(result) > 0 ? targetCapital : 0, fmt: x => money(x, ccy), section: "Risk and return" },
-    { label: "Expected return · annual", info: "Expected return · annual", before: before.ann_ret, after: after.ann_ret, fmt: pct(2) },
-    { label: "Portfolio volatility", info: "Portfolio volatility", before: before.ann_vol, after: after.ann_vol, fmt: pct(1) },
+    { label: "USD excess return · annual", info: "Expected return · annual", before: before.ann_ret, after: after.ann_ret, fmt: pct(2) },
+    { label: "USD volatility · annual", info: "Portfolio volatility", before: before.ann_vol, after: after.ann_vol, fmt: pct(1) },
     { label: "Portfolio green score", info: "Portfolio green score", before: a.greenScore.value, after: b.greenScore.value, fmt: dec(2), section: "Environment" },
     { label: "Greenness · g", info: "Greenness · g", before: before.g_avg, after: after.g_avg, fmt: dec(2) },
     { label: "E-score coverage", info: "E-score coverage", before: a.greenScore.coverage, after: b.greenScore.coverage, fmt: pct(1) },
