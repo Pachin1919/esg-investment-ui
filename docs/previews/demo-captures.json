@@ -37,5 +37,29 @@
       "time_seconds": 120,
       "kind": "recorded product interface"
     }
-  ]
+  ],
+  "readme_clean_images": [
+    {
+      "file": "demo-greenwashing-clean.png",
+      "source": "original greenwashing animation page",
+      "local_time_seconds": 2.5
+    },
+    {
+      "file": "demo-greenness-clean.png",
+      "source": "original method animation page",
+      "local_time_seconds": 6
+    },
+    {
+      "file": "demo-financial-factors-clean.png",
+      "source": "original financial factors animation page",
+      "local_time_seconds": 3.5
+    },
+    {
+      "file": "demo-comparison-clean.png",
+      "source": "original comparison-metrics.mp4 product recording",
+      "local_time_seconds": 4
+    }
+  ],
+  "readme_image_count": 6,
+  "subtitle_overlays": false
 }
