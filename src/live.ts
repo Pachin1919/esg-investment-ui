@@ -13,9 +13,10 @@ const exchangeOf = (ticker: string) => (ticker.endsWith(".HK") ? "XHKG" : /\.TWO
 const fmt = (x: number | null | undefined) => (x == null ? "unavailable" : x.toFixed(1));
 
 function explanation(c: Company) {
-  if (c.score === null) return "No emissions disclosure is available for this company, so it has no environmental score.";
+  if (c.score === null) return "Insufficient data: no environmental score is available for this company in the selected dataset.";
   const flag = c.greenwasher ? " Flagged: stated ambitions outpace documented action." : c.greenhusher ? " Quiet action: documented action exceeds what the company says." : "";
-  return `E-score ${fmt(c.score)} of 10: emission intensity ranked within ${c.sector}. Talk score ${fmt(c.talk)}, talk–walk gap ${fmt(c.gap)}.${flag}`;
+  const assessment = c.assessment_status === "insufficient_data" || c.greenwasher == null || c.greenhusher == null ? " Insufficient data for a greenwashing assessment." : flag || " No signal detected in the available database; this is not a safety assessment.";
+  return `E-score ${fmt(c.score)} of 10: emission intensity ranked within ${c.sector}. Dictionary talk score ${fmt(c.talk)}, talk–walk gap ${fmt(c.gap)}.${assessment}`;
 }
 
 export function toHolding(c: Company, value: number): Holding {

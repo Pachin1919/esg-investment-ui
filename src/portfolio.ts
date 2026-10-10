@@ -1,4 +1,5 @@
 import { exchangeRate } from "./marketData";
+import type { FxRate } from "./dataset";
 
 export type Holding = {
   id: string; ticker: string; name: string; exchange: string; assetClass: string;
@@ -115,10 +116,10 @@ export function parsePortfolioImport(text: string, lookup: Lookup = () => undefi
 }
 
 
-export function normalizeImport(parsed: ParsedImport, baseCurrency: string, fileName: string): Portfolio {
-  exchangeRate("USD",baseCurrency);
+export function normalizeImport(parsed: ParsedImport, baseCurrency: string, fileName: string, rates: FxRate[] = []): Portfolio {
+  if (baseCurrency !== "HKD") throw new Error("Portfolio reporting and optimization require HKD.");
   const holdings=parsed.holdings.map(h => {
-    const rate=exchangeRate(h.currency,baseCurrency);
+    const rate=exchangeRate(h.currency,baseCurrency,rates);
     const value=roundMoney(h.value*rate);
     if (!Number.isFinite(value) || value<=0) throw new Error("Converted holding values must be positive and finite.");
     return {...h,currency:baseCurrency,value,unitPrice:h.unitPrice==null?null:(h.units?value/h.units:h.unitPrice*rate)};

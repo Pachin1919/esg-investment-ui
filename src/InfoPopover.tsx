@@ -7,9 +7,9 @@ import type { Holding } from "./portfolio";
 
 export const metricExplanations: Record<string,string> = {
   "Portfolio value":"The sum of the current market values of all holdings, expressed in the reporting currency. Share value is unit price multiplied by the number of shares.",
-  "Expected return · annual":"A model-implied annual return from the factor model (market, size, value, profitability, investment, momentum and, when estimated, green). It is an estimate, not a forecast or a guarantee.",
+  "Expected return · annual":"Model-implied annual excess return on a USD basis from the factor model (market, size, value, profitability, investment, momentum and, when estimated, green). Excess means above the model's risk-free rate. Monetary holdings and trade capital are reported in HKD; this is not an HKD total-return forecast or a guarantee.",
   "Portfolio green score":"E-score is a company's emission-intensity rank within its sector, from 0 to 10; higher is greener. The portfolio score is the value-weighted average over the holdings that have a score; E-score coverage shows how much of the portfolio that is.",
-  "Portfolio volatility":"How much the portfolio's annual return is expected to fluctuate, from the factor risk model. Your risk level sets the target; holdings without return history are not included.",
+  "Portfolio volatility":"Annual volatility on a USD basis from the factor risk model. Your risk level sets the target; holdings without return history are not included. HKD reporting capital does not change the model's return or risk currency.",
   "E-score coverage":"The percentage of current portfolio value represented by holdings with an available environmental score. Missing company scores stay unavailable.",
   "Greenness · g":"Greenness combines the E-score with how much the environment matters for the company's industry. Zero is the greenest possible value; more negative is browner.",
   "Positions":"The number of holdings the risk model covers.",

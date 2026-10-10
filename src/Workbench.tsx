@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, ArrowsLeftRight, CheckCircle, DownloadSimple, FileArrowUp, GearSix, Info, Leaf, Sparkle, SquaresFour, WarningCircle } from "@phosphor-icons/react";
-import { fetchCompanies, fetchFilterOptions, recommendPortfolio } from "./api";
+import { ArrowRight, ArrowsLeftRight, ChatText, CheckCircle, Database, DownloadSimple, FileArrowUp, GearSix, Info, Leaf, Sparkle, SquaresFour, WarningCircle } from "@phosphor-icons/react";
+import { fetchCompanies, fetchFilterOptions, modelContext, recommendPortfolio } from "./api";
 import type { Recommendation, SectorOption } from "./api";
 import Brand from "./Brand";
 import Comparison from "./Comparison";
 import ImportFlow from "./ImportFlow";
-import { holdingsRequest, lookupIn, POOLED_MARKET, newCapital, recommendedPortfolio, samplePortfolio, withPrices } from "./live";
+import { holdingsRequest, lookupIn, newCapital, recommendedPortfolio, samplePortfolio, withPrices, toHolding } from "./live";
 import type { Plan, Universe } from "./live";
 import { HoldingsTable, MetricCards, UniverseSearch } from "./Overview";
 import { download, money, totalValue } from "./portfolio";
@@ -19,12 +19,15 @@ import { Button, Dialog, HighlightBadge, RiskBadge } from "./ui";
 import AnalysisDrawer from "./explainability/AnalysisDrawer";
 import type { AnalysisInput, AnalysisSnapshot } from "./explainability/AnalysisDrawer";
 import explanationStyles from "./explainability/AnalysisDrawer.module.css";
+import { DataSourcesPage, DataStatusBar, TalkWalkPage } from "./DataWorkspace";
+import { dataLabel, fetchDataStatus, selectedDataset, selectDataset } from "./dataset";
+import type { DataStatus, Market } from "./dataset";
 
-type View = "overview" | "recommendations" | "settings";
+type View = "overview" | "talk-walk" | "recommendations" | "sources" | "settings";
 type State = { version: 3; portfolio: Portfolio | null; risk: number; green: number; maxInvestment: number; plan: Plan };
 const initialState: State = { version: 3, portfolio: null, risk: 3, green: 4, maxInvestment: 100000, plan: { industries: null, tolerancePercent: 0 } };
 const storageKey = "green-street-workspace-v3";
-const nav = [["overview", SquaresFour, "Current portfolio"], ["recommendations", Sparkle, "Recommendations"], ["settings", GearSix, "Settings"]] as const;
+const nav = [["overview", SquaresFour, "Current portfolio"], ["talk-walk", ChatText, "Talk & Walk"], ["recommendations", Sparkle, "Recommendations"], ["sources", Database, "Data sources"], ["settings", GearSix, "Settings"]] as const;
 
 function restore(): State | null {
   try {
@@ -37,6 +40,9 @@ export default function Workbench({ entry, onHome }: { entry: "demo" | "resume" 
   const [state, setState] = useState<State>(() => restore() ?? initialState);
   const [view, setView] = useState<View>(entry === "settings" ? "settings" : "overview");
   const [universe, setUniverse] = useState<Universe | null>(null), [engineDown, setEngineDown] = useState(false);
+  const [marketUniverse, setMarketUniverse] = useState<Universe | null>(null);
+  const [market, setMarket] = useState<Market>("all"), [datasetId, setDatasetId] = useState(selectedDataset);
+  const [dataStatus, setDataStatus] = useState<DataStatus | null>(null), [dataError, setDataError] = useState(""), [datasetReady, setDatasetReady] = useState(false);
   const [sectors, setSectors] = useState<SectorOption[]>([]);
   const [rec, setRec] = useState<Recommendation | null>(null), [loading, setLoading] = useState(false), [recError, setRecError] = useState("");
   const [analysisOpen, setAnalysisOpen] = useState(false);
@@ -51,31 +57,41 @@ export default function Workbench({ entry, onHome }: { entry: "demo" | "resume" 
   // The scored universe; the demo entry starts from a sample of real companies.
   useEffect(() => {
     let live = true;
-    fetchCompanies("all").then(list => {
+    setUniverse(null); setMarketUniverse(null); setEngineDown(false); setDatasetReady(false); setDataStatus(null); setDataError("");
+    Promise.all([fetchCompanies("all"), market === "all" ? Promise.resolve(null) : fetchCompanies(market), fetchDataStatus(market).catch(err => { if (live) setDataError(err.message); return null; })]).then(([list, filtered, status]) => {
       if (!live) return;
-      if (!list?.length) { setEngineDown(true); return; }
+      setDataStatus(status);
+      if (!list) { setEngineDown(true); return; }
       const u: Universe = new Map(list.map(c => [c.ticker, c]));
-      setUniverse(u);
-      if (entry === "demo") setState(s => (s.portfolio ? s : { ...s, portfolio: samplePortfolio(u) }));
+      setUniverse(u); setMarketUniverse(market === "all" ? u : new Map((filtered ?? []).map(c => [c.ticker, c]))); setDatasetReady(true);
+      setState(s => {
+        if (!s.portfolio) return entry === "demo" ? { ...s, portfolio: samplePortfolio(u) } : s;
+        return { ...s, portfolio: { ...s.portfolio, holdings: s.portfolio.holdings.map(h => {
+          const company = u.get(h.ticker);
+          return { ...h, eScore: company?.score ?? null, sector: company?.sector ?? h.sector, greenExplanation: company ? toHolding(company, 0).greenExplanation : "Insufficient data in the selected dataset. This holding remains in your portfolio." };
+        }) } };
+      });
     });
     return () => { live = false; };
-  }, [entry]);
+  }, [entry, market, datasetId]);
 
-  const stored = state.portfolio, market = POOLED_MARKET;
-  const analysisInput = useMemo<AnalysisInput | null>(() => stored ? {
-    request: { holdings: holdingsRequest(stored), risk_score: state.risk, green_score: state.green, market,
+  const stored = state.portfolio;
+  const capitalValid = !stored || (stored.baseCurrency === "HKD" && stored.holdings.every(h => h.currency === "HKD"));
+  const currencyError = capitalValid ? "" : "This saved portfolio uses a foreign reporting currency. Upload it again to convert with dated dataset FX before requesting recommendations. Optimization requires HKD capital.";
+  const analysisInput = useMemo<AnalysisInput | null>(() => stored && capitalValid && datasetReady ? {
+    request: { holdings: holdingsRequest(stored), risk_score: state.risk, green_score: state.green, market, capital_currency: "HKD",
       max_new_capital: newCapital(stored, state.plan, state.maxInvestment),
       ...(state.plan.industries ? { filters: { include_industries: state.plan.industries } } : {}) },
     currency: stored.baseCurrency,
     cashValue: stored.holdings.filter(h => h.assetClass.toLowerCase() === "cash").reduce((sum, h) => sum + h.value, 0),
-  } : null, [stored, state.risk, state.green, state.maxInvestment, state.plan, market]);
-  useEffect(() => { let live = true; fetchFilterOptions(market).then(s => { if (live) setSectors(s); }); return () => { live = false; }; }, [market]);
+  } : null, [stored, capitalValid, datasetReady, state.risk, state.green, state.maxInvestment, state.plan, market, datasetId]);
+  useEffect(() => { let live = true; setSectors([]); fetchFilterOptions(market).then(s => { if (live) setSectors(s); }); return () => { live = false; }; }, [market, datasetId]);
 
   // One engine call serves both pages: `before` describes the current portfolio, the rest the recommendation.
   useEffect(() => {
-    if (!analysisInput) { setRec(null); setAnalysisSnapshot(null); return; }
+    if (!analysisInput) { setRec(null); setAnalysisSnapshot(null); setLoading(false); return; }
     let live = true;
-    setLoading(true); setRecError("");
+    setRec(null); setLoading(true); setRecError("");
     setAnalysisSnapshot({ input: analysisInput, status: "waiting" });
     recommendPortfolio(analysisInput.request).then(res => {
       if (!live) return;
@@ -94,6 +110,9 @@ export default function Workbench({ entry, onHome }: { entry: "demo" | "resume" 
   const p = useMemo(() => (stored ? withPrices(stored, rec) : null), [stored, rec]);
   const result = useMemo(() => (p && rec && universe ? recommendedPortfolio(p, rec, universe) : null), [p, rec, universe]);
   const currency = p?.baseCurrency ?? "HKD";
+  const invalidate = () => { setDatasetReady(false); setRec(null); setRecError(""); setAnalysisSnapshot(null); setAnalysisOpen(false); setRecTab("builder"); setState(s => ({ ...s, plan: { ...s.plan, industries: null } })); };
+  const changeMarket = (next: Market) => { if (next === market) return; invalidate(); setMarket(next); };
+  const changeDataset = (id: string) => { if (id === datasetId) return; invalidate(); setUploadOpen(false); selectDataset(id); setDatasetId(id); setNotice("Dataset changed. Industry selections and previous analysis were reset."); };
   const go = (next: View) => { setView(next); window.scrollTo(0, 0); };
   const load = (portfolio: Portfolio) => {
     setState(s => ({ ...s, portfolio, plan: initialState.plan }));
@@ -113,22 +132,23 @@ export default function Workbench({ entry, onHome }: { entry: "demo" | "resume" 
     if (exportBusy || !p) return;
     setExportBusy(true);
     try {
-      const context = `Valuation: ${p.asOf}  |  Currency: ${currency}  |  Risk level ${state.risk}  |  Green preference ${state.green}  |  Maximum investment ${money(state.maxInvestment, currency)}`;
+      const context = `Valuation: ${p.asOf} | Capital: ${currency} | ${dataLabel(dataStatus)} | Model: ${rec?.model_currency ?? "unavailable"} ${rec?.return_basis ?? "basis unavailable"} | Risk ${state.risk} | Green ${state.green}`;
       const file = await renderTable(table, exportFormat, context);
       download(file.name, file.content, file.mimeType); setNotice(`${table.title} exported.`);
     } catch { setNotice("Could not generate the file. Please try again."); } finally { setExportBusy(false); }
   };
-  const status = engineDown ? <p className="engine-status error" role="alert"><WarningCircle size={16} />The analysis engine is not reachable. Scores and recommendations are unavailable.</p>
+  const status = currencyError ? <p className="engine-status error" role="alert"><WarningCircle size={16} />{currencyError}</p> : engineDown ? <p className="engine-status error" role="alert"><WarningCircle size={16} />The analysis engine is not reachable. Scores and recommendations are unavailable.</p>
     : recError ? <p className="engine-status error" role="alert"><WarningCircle size={16} />{recError}</p> : null;
 
   return <div className={view === "recommendations" ? "workbench recommendation-workspace" : "workbench"}><aside className="app-sidebar"><Brand onHome={onHome} />{view !== "recommendations" && <span className="nav-label">ANALYSIS WORKSPACE</span>}<nav aria-label="Workspace navigation">{nav.map(([id, Icon, label]) => <button key={id} aria-label={label} aria-current={view === id ? "page" : undefined} className={view === id ? "active" : ""} onClick={() => go(id)} disabled={!p && id === "recommendations"}><Icon size={20} />{label}</button>)}</nav><button className="back-landing" onClick={onHome}><Leaf />Back to website</button></aside>
     <div className="app-main"><main>
+      <DataStatusBar status={dataStatus} error={dataError} market={market} onMarketChange={changeMarket} onSources={() => go("sources")} />
       {view === "overview" && <div className="workspace-page"><div className="workspace-heading portfolio-heading"><div><span className="workspace-eyebrow">PORTFOLIO ASSESSMENT</span><h1>Current portfolio</h1><p>Manage your holdings and review their financial and environmental performance.</p></div><Button onClick={() => setUploadOpen(true)} disabled={!universe}><FileArrowUp size={20} />Upload portfolio</Button></div>
         {status}
-        {p ? <><MetricCards portfolio={p} stats={rec?.before ?? null} /><div className="analysis-meta"><HighlightBadge variant="assets">{p.holdings.length} assets · {money(totalValue(p), currency)}</HighlightBadge><RiskBadge value={state.risk} /><HighlightBadge variant="green">Green preference · Level {state.green}</HighlightBadge></div><HoldingsTable portfolio={p} />
+        {p ? <><MetricCards portfolio={p} stats={rec?.before ?? null} />{rec && <p className="builder-footnote">{modelContext(rec)}</p>}<div className="analysis-meta"><HighlightBadge variant="assets">{p.holdings.length} assets · {money(totalValue(p), currency)}</HighlightBadge><RiskBadge value={state.risk} /><HighlightBadge variant="green">Green preference · Level {state.green}</HighlightBadge></div><HoldingsTable portfolio={p} />
           <div className="workspace-actions"><Button onClick={() => go("recommendations")}>View recommendations <ArrowRight /></Button><Button kind="ghost" disabled={exportBusy} onClick={() => void exportCurrent()}>Export portfolio</Button><Button kind="ghost" onClick={() => { setState(s => ({ ...s, portfolio: null, plan: initialState.plan })); setNotice("Portfolio removed from this browser."); }}>Clear portfolio</Button></div></>
           : <section className="workspace-panel empty-workspace"><FileArrowUp size={44} /><h2>Bring your holdings together.</h2><p>Use Upload portfolio above to add a CSV file and start reviewing your investments.</p><div className="empty-file-hint">CSV · Ticker, current value and currency · Up to 10 MB</div></section>}
-        {universe && <UniverseSearch universe={universe} portfolio={p} />}
+        {marketUniverse && <UniverseSearch key={`${datasetId}-${market}`} universe={marketUniverse} portfolio={p} />}
       </div>}
       {p && universe && view === "recommendations" && <div className="workspace-page recommendations-page">
         <div className="workspace-heading recommendations-heading"><div><span className="workspace-eyebrow">RECOMMENDATIONS</span><h1>Build your recommended portfolio.</h1><p>Choose your industries. The engine balances risk, greenness and trading cost.</p></div><button type="button" className={explanationStyles.entry} aria-haspopup="dialog" aria-expanded={analysisOpen} onClick={() => setAnalysisOpen(true)}><Info size={16} />Analysis details</button></div>
@@ -141,11 +161,13 @@ export default function Workbench({ entry, onHome }: { entry: "demo" | "resume" 
         </div>
         {/* the builder stays mounted so an unsaved setup survives a look at the tables */}
         <div role="tabpanel" id="panel-builder" aria-labelledby="tab-builder" hidden={recTab !== "builder"}>
-          <RecommendationsBuilder key={stored ? stored.name + stored.holdings.length : ""} baseline={p} universe={universe} sectors={sectors} maximum={state.maxInvestment} plan={state.plan} rec={rec} portfolio={result} loading={loading} error={recError} onPlanChange={plan => setState(s => ({ ...s, plan }))} />
+          <RecommendationsBuilder key={`${datasetId}-${market}-${stored?.name}-${stored?.holdings.length}`} baseline={p} universe={universe} sectors={sectors} maximum={state.maxInvestment} plan={state.plan} rec={rec} portfolio={result} loading={loading} error={currencyError || recError} dataStatusLabel={dataLabel(dataStatus)} disabled={!capitalValid || !datasetReady} onPlanChange={plan => setState(s => ({ ...s, plan }))} />
         </div>
         {recTab === "comparison" && result && rec && <section role="tabpanel" id="panel-comparison" aria-labelledby="tab-comparison" className="workspace-panel builder-comparison comparison-tab"><Comparison baseline={p} result={result} rec={rec} universe={universe} /></section>}
       </div>}
-      {view === "settings" && <Settings risk={state.risk} green={state.green} maxInvestment={state.maxInvestment} currency={currency} onSave={(risk, green, maxInvestment) => { setState(s => ({ ...s, risk, green, maxInvestment })); setNotice("Settings saved."); }} />}
+      {view === "talk-walk" && <TalkWalkPage universe={marketUniverse} market={market} datasetId={datasetId} />}
+      {view === "sources" && <DataSourcesPage datasetId={datasetId} status={dataStatus} onDatasetChange={changeDataset} />}
+      {view === "settings" && <Settings risk={state.risk} green={state.green} maxInvestment={state.maxInvestment} currency="HKD" onSave={(risk, green, maxInvestment) => { setState(s => ({ ...s, risk, green, maxInvestment })); setNotice("Settings saved."); }} />}
     </main></div>
     {analysisOpen && analysisInput && <AnalysisDrawer input={analysisInput} snapshot={analysisSnapshot} onClose={() => setAnalysisOpen(false)} />}
     {uploadOpen && universe && <Dialog title="Upload portfolio" onClose={() => setUploadOpen(false)}><ImportFlow lookup={lookupIn(universe)} onImport={load} /></Dialog>}
