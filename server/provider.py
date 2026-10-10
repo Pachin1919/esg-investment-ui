@@ -18,6 +18,7 @@ import pandas as pd
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
 from esgx.api.store import DataStore
+from esgx.measures.greenwash import TALK_CUT, WALK_CUT
 from server.dataset import load_market
 
 MAX_BYTES = 32 * 1024 * 1024
@@ -424,8 +425,11 @@ def talk_walk_endpoint(store: Store, market: str = "all", firm_id: str | None = 
             dictionary.append({"firm_id": row["firm_id"], "market": m, "year": row["year"], **{k: company[k] for k in ("talk", "walk", "gap", "greenwasher", "greenhusher", "assessment_status")}})
     return clean({"dataset_id": getattr(store, "dataset_id", "builtin"), "market": market,
                   "assessment_status": "evidence_available" if semantic or dictionary else "insufficient_data",
-                  "semantic_llm": {"kind": "semantic_llm", "scale": "0-10 semantic rubric", "firms": semantic, "coverage": {"firms": len({r["firm_id"] for r in semantic}), "documents": document_count}},
-                  "dictionary": {"kind": "dictionary", "scale": "0-10 within-sector percentile", "firms": dictionary},
+                  "semantic_llm": {"kind": "semantic_llm", "scale": "0-10 semantic rubric", "firms": semantic, "coverage": {"firms": len({r["firm_id"] for r in semantic}), "documents": document_count},
+                                   "methodology": {"classification": "not_provided", "gap_is_classifier": False}},
+                  "dictionary": {"kind": "dictionary", "scale": "0-10 within-sector percentile", "firms": dictionary,
+                                 "methodology": {"rule": "high_talk_low_walk", "talk_min": TALK_CUT, "walk_max": WALK_CUT,
+                                                 "gap_is_classifier": False, "source": "esgx.measures.greenwash"}},
                   "limitations": ["LLM evidence summarizes report claims and is not an independent audit.", "Semantic rubric and dictionary percentile values must not be averaged or compared on a single scale."]})
 
 

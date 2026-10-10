@@ -87,7 +87,28 @@ function assessment(row?: TalkWalkFirm) {
   return "No signal detected";
 }
 function ScoreSummary({ row, scale, signal }: { row?: TalkWalkFirm; scale: string; signal?: string }) {
-  return <><div className={styles.scores}>{(["talk", "walk", "gap"] as const).map(key => <div key={key}><span>{key === "gap" ? "Talk–walk gap" : friendlyKey(key)}</span><strong>{showValue(row?.[key])}</strong>{key !== "gap" && row?.[key] != null && <meter aria-label={`${friendlyKey(key)} score`} min={0} max={10} value={row[key]} />}</div>)}</div><p className={styles.note}>{scale}{row?.year != null ? ` · ${row.year}` : ""}{signal ? ` · ${signal}` : ""}</p></>;
+  const meanings = { talk: "What the company says", walk: "Documented action / performance", gap: "Talk − Walk · + Talk higher / − Walk higher" };
+  return <><div className={styles.scores}>{(["talk", "walk", "gap"] as const).map(key => <div key={key}><span>{key === "gap" ? "Talk–walk gap" : friendlyKey(key)}</span><small>{meanings[key]}</small><strong>{key === "gap" && row?.gap != null && Number.isFinite(row.gap) && row.gap > 0 ? `+${showValue(row.gap)}` : showValue(row?.[key])}</strong>{key !== "gap" && row?.[key] != null && <meter aria-label={`${friendlyKey(key)} score`} min={0} max={10} value={row[key]} />}</div>)}</div><p className={styles.note}>{scale}{row?.year != null ? ` · ${row.year}` : ""}{signal ? ` · ${signal}` : ""}</p></>;
+}
+function ScoreExplanation({ data }: { data: TalkWalkData | null }) {
+  const methodology = data?.dictionary.methodology;
+  const hasRule = methodology?.rule === "high_talk_low_walk" && Number.isFinite(methodology.talk_min) && Number.isFinite(methodology.walk_max);
+  const threshold = (value: number) => Math.abs(value - 10 / 3) < 1e-10 ? "10/3 (≈3.33)" : String(value);
+  return <details className={styles.scoreExplanation}>
+    <summary>How to read these scores</summary>
+    <div className={styles.scoreExplanationBody}>
+      <p><strong>Gap = Talk − Walk.</strong> A positive gap means Talk is higher; a negative gap means Walk is higher. A large gap alone does not trigger a greenwash signal.</p>
+      <dl>
+        <div><dt>LLM semantic rubric</dt><dd>Talk rates environmental ambition, specificity and promotion. Walk rates documented reductions, capital investment, governance and verification. These are semantic ratings, not percentile ranks; the dictionary rule does not classify LLM scores.</dd></div>
+        <div><dt>Dictionary scores</dt><dd>Talk ranks environmental claim-word density. Walk ranks hard environmental performance, using carbon intensity by default in the engine. Ranks compare peers within the same sector and year on a 0–10 scale. Mounted datasets may use other Walk measures.</dd></div>
+      </dl>
+      <p><strong>{hasRule ? "Engine dictionary rule" : "Reference engine dictionary rule"}:</strong> Talk ≥ {hasRule ? threshold(methodology.talk_min) : "8"} <strong>AND</strong> Walk ≤ {hasRule ? threshold(methodology.walk_max) : "10/3 (≈3.33)"}. Both conditions must hold. The reference engine uses the top quintile for Talk and bottom tercile for Walk.</p>
+      {!hasRule && <p>The active dataset has not supplied supported classifier thresholds. The reference rule below explains the engine; it does not establish this dataset’s classification.</p>}
+      <p>Actual signals come from the dataset’s classification flags. Displayed scores are rounded; this page does not recalculate those flags. Missing scores or flags remain unclassified.</p>
+      <div className="table-scroll"><table className={styles.ruleExamples}><caption>Illustrative examples using the reference engine rule</caption><thead><tr><th>Talk</th><th>Walk</th><th>Gap</th><th>Greenwash signal</th></tr></thead><tbody><tr><td>6</td><td>1</td><td>+5</td><td>No · Talk is below 8</td></tr><tr><td>9</td><td>5</td><td>+4</td><td>No · Walk is above 10/3</td></tr><tr><td>9</td><td>2</td><td>+7</td><td>Yes · Both conditions hold</td></tr></tbody></table></div>
+      <p>A signal calls for investigation of the supporting evidence; it is not a finding of misconduct.</p>
+    </div>
+  </details>;
 }
 export function TalkWalkPage({ universe, market, datasetId }: { universe: Universe | null; market: Market; datasetId: string }) {
   const [query, setQuery] = useState(""), [selected, setSelected] = useState("");
@@ -132,7 +153,7 @@ export function TalkWalkPage({ universe, market, datasetId }: { universe: Univer
         {document.dimensions && Object.keys(document.dimensions).length > 0 && <details><summary>Document dimensions</summary><dl className={styles.documentDimensions}>{Object.entries(document.dimensions).map(([key, value]) => <div key={key}><dt>{friendlyKey(key)}</dt><dd>{showValue(value)}</dd></div>)}</dl></details>}
       </details>) : <p className={styles.note}>{loading ? "Loading documents…" : "Insufficient data · No supporting LLM documents are available in this dataset."}</p>}
     </section>
-    <section className="workspace-panel"><div className="panel-heading"><div><h2>Dictionary assessment</h2><p>Keyword and sector-relative scores, shown separately from the LLM rubric.</p></div></div><ScoreSummary row={dictionary} scale={data?.dictionary.scale ?? "0–10 within-sector percentile"} signal={assessment(dictionary)} />{!dictionary && <p className={styles.note}>Insufficient data · No dictionary assessment is available for this company.</p>}</section>
+    <section className="workspace-panel"><div className="panel-heading"><div><h2>Dictionary assessment</h2><p>Keyword and sector-relative scores, shown separately from the LLM rubric.</p></div></div><ScoreSummary row={dictionary} scale={data?.dictionary.scale ?? "0–10 within-sector percentile"} signal={assessment(dictionary)} />{!dictionary && <p className={styles.note}>Insufficient data · No dictionary assessment is available for this company.</p>}<ScoreExplanation data={data} /></section>
     {data?.limitations?.length ? <section className="workspace-panel"><h2>Coverage notes</h2><ul className={styles.limitations}>{data.limitations.map(note => <li key={note}>{note}</li>)}</ul></section> : null}</>}
   </div>;
 }

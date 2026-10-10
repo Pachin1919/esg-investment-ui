@@ -40,8 +40,8 @@ export type TalkWalkFirm = {
 };
 export type TalkWalkData = {
   dataset_id: string; market: string; assessment_status?: string;
-  semantic_llm: { kind: string; scale: string; firms: TalkWalkFirm[]; coverage: { firms: number; documents: number } };
-  dictionary: { kind: string; scale: string; firms: TalkWalkFirm[] };
+  semantic_llm: { kind: string; scale: string; firms: TalkWalkFirm[]; coverage: { firms: number; documents: number }; methodology?: { classification: string; gap_is_classifier: boolean } };
+  dictionary: { kind: string; scale: string; firms: TalkWalkFirm[]; methodology?: { rule: string; talk_min: number; walk_max: number; gap_is_classifier: boolean; source: string } };
   limitations: string[];
 };
 export async function readDataset<T>(path: string, init?: RequestInit): Promise<T> {
