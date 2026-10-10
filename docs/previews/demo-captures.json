@@ -1,0 +1,41 @@
+{
+  "source": "Green Street formal demo V1.2, music revision 3",
+  "capture_date": "2026-10-10",
+  "frames": [
+    {
+      "file": "demo-vision.jpg",
+      "time_seconds": 28,
+      "kind": "presentation frame"
+    },
+    {
+      "file": "demo-greenwashing.jpg",
+      "time_seconds": 39.5,
+      "kind": "presentation frame"
+    },
+    {
+      "file": "demo-greenness.jpg",
+      "time_seconds": 48,
+      "kind": "presentation frame"
+    },
+    {
+      "file": "demo-financial-factors.jpg",
+      "time_seconds": 61.5,
+      "kind": "presentation frame"
+    },
+    {
+      "file": "demo-recommendations.jpg",
+      "time_seconds": 97,
+      "kind": "recorded product interface"
+    },
+    {
+      "file": "demo-comparison.jpg",
+      "time_seconds": 107,
+      "kind": "recorded product interface"
+    },
+    {
+      "file": "demo-holdings.jpg",
+      "time_seconds": 120,
+      "kind": "recorded product interface"
+    }
+  ]
+}
