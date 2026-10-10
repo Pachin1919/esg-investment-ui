@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, ArrowsLeftRight, CheckCircle, DownloadSimple, FileArrowUp, GearSix, Leaf, Sparkle, SquaresFour, WarningCircle } from "@phosphor-icons/react";
+import { ArrowRight, ArrowsLeftRight, CheckCircle, DownloadSimple, FileArrowUp, GearSix, Info, Leaf, Sparkle, SquaresFour, WarningCircle } from "@phosphor-icons/react";
 import { fetchCompanies, fetchFilterOptions, recommendPortfolio } from "./api";
 import type { Recommendation, SectorOption } from "./api";
 import Brand from "./Brand";
@@ -16,6 +16,9 @@ import type { ExportTable, TableFormat } from "./tableExport";
 import RecommendationsBuilder from "./RecommendationsBuilder";
 import Settings from "./Settings";
 import { Button, Dialog, HighlightBadge, RiskBadge } from "./ui";
+import AnalysisDrawer from "./explainability/AnalysisDrawer";
+import type { AnalysisInput, AnalysisSnapshot } from "./explainability/AnalysisDrawer";
+import explanationStyles from "./explainability/AnalysisDrawer.module.css";
 
 type View = "overview" | "recommendations" | "settings";
 type State = { version: 3; portfolio: Portfolio | null; risk: number; green: number; maxInvestment: number; plan: Plan };
@@ -36,6 +39,8 @@ export default function Workbench({ entry, onHome }: { entry: "demo" | "resume" 
   const [universe, setUniverse] = useState<Universe | null>(null), [engineDown, setEngineDown] = useState(false);
   const [sectors, setSectors] = useState<SectorOption[]>([]);
   const [rec, setRec] = useState<Recommendation | null>(null), [loading, setLoading] = useState(false), [recError, setRecError] = useState("");
+  const [analysisOpen, setAnalysisOpen] = useState(false);
+  const [analysisSnapshot, setAnalysisSnapshot] = useState<AnalysisSnapshot | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false), [exportOpen, setExportOpen] = useState(false);
   const [exportFormat, setExportFormat] = useState<TableFormat>("pdf"), [exportBusy, setExportBusy] = useState(false);
   const [notice, setNotice] = useState("");
@@ -57,22 +62,34 @@ export default function Workbench({ entry, onHome }: { entry: "demo" | "resume" 
   }, [entry]);
 
   const stored = state.portfolio, market = POOLED_MARKET;
+  const analysisInput = useMemo<AnalysisInput | null>(() => stored ? {
+    request: { holdings: holdingsRequest(stored), risk_score: state.risk, green_score: state.green, market,
+      max_new_capital: newCapital(stored, state.plan, state.maxInvestment),
+      ...(state.plan.industries ? { filters: { include_industries: state.plan.industries } } : {}) },
+    currency: stored.baseCurrency,
+    cashValue: stored.holdings.filter(h => h.assetClass.toLowerCase() === "cash").reduce((sum, h) => sum + h.value, 0),
+  } : null, [stored, state.risk, state.green, state.maxInvestment, state.plan, market]);
   useEffect(() => { let live = true; fetchFilterOptions(market).then(s => { if (live) setSectors(s); }); return () => { live = false; }; }, [market]);
 
   // One engine call serves both pages: `before` describes the current portfolio, the rest the recommendation.
   useEffect(() => {
-    if (!stored) { setRec(null); return; }
+    if (!analysisInput) { setRec(null); setAnalysisSnapshot(null); return; }
     let live = true;
     setLoading(true); setRecError("");
-    recommendPortfolio({ holdings: holdingsRequest(stored), risk_score: state.risk, green_score: state.green, market,
-      max_new_capital: newCapital(stored, state.plan, state.maxInvestment),
-      ...(state.plan.industries ? { filters: { include_industries: state.plan.industries } } : {}) }).then(res => {
+    setAnalysisSnapshot({ input: analysisInput, status: "waiting" });
+    recommendPortfolio(analysisInput.request).then(res => {
       if (!live) return;
-      if ("error" in res) { setRec(null); setRecError(res.error); } else setRec(res);
+      if ("error" in res) {
+        setRec(null); setRecError(res.error);
+        setAnalysisSnapshot({ input: analysisInput, status: "error", error: res.error });
+      } else {
+        setRec(res);
+        setAnalysisSnapshot({ input: analysisInput, status: "completed", result: res });
+      }
       setLoading(false);
     });
     return () => { live = false; };
-  }, [stored, state.risk, state.green, state.maxInvestment, state.plan, market]);
+  }, [analysisInput]);
 
   const p = useMemo(() => (stored ? withPrices(stored, rec) : null), [stored, rec]);
   const result = useMemo(() => (p && rec && universe ? recommendedPortfolio(p, rec, universe) : null), [p, rec, universe]);
@@ -114,7 +131,7 @@ export default function Workbench({ entry, onHome }: { entry: "demo" | "resume" 
         {universe && <UniverseSearch universe={universe} portfolio={p} />}
       </div>}
       {p && universe && view === "recommendations" && <div className="workspace-page recommendations-page">
-        <div className="workspace-heading recommendations-heading"><div><span className="workspace-eyebrow">RECOMMENDATIONS</span><h1>Build your recommended portfolio.</h1><p>Choose your industries. The engine balances risk, greenness and trading cost.</p></div></div>
+        <div className="workspace-heading recommendations-heading"><div><span className="workspace-eyebrow">RECOMMENDATIONS</span><h1>Build your recommended portfolio.</h1><p>Choose your industries. The engine balances risk, greenness and trading cost.</p></div><button type="button" className={explanationStyles.entry} aria-haspopup="dialog" aria-expanded={analysisOpen} onClick={() => setAnalysisOpen(true)}><Info size={16} />Analysis details</button></div>
         <div className="recommendation-summary"><RiskBadge value={state.risk} /><HighlightBadge variant="green">Green preference · Level {state.green}</HighlightBadge><HighlightBadge variant="budget">Maximum investment · {money(state.maxInvestment, currency)}</HighlightBadge><button onClick={() => go("settings")}>Edit settings</button></div>
         <div className="view-tabs"><div role="tablist" aria-label="Recommendation views">
           <button role="tab" id="tab-builder" aria-selected={recTab === "builder"} aria-controls="panel-builder" onClick={() => setRecTab("builder")}><Sparkle size={17} />Recommended portfolio</button>
@@ -130,6 +147,7 @@ export default function Workbench({ entry, onHome }: { entry: "demo" | "resume" 
       </div>}
       {view === "settings" && <Settings risk={state.risk} green={state.green} maxInvestment={state.maxInvestment} currency={currency} onSave={(risk, green, maxInvestment) => { setState(s => ({ ...s, risk, green, maxInvestment })); setNotice("Settings saved."); }} />}
     </main></div>
+    {analysisOpen && analysisInput && <AnalysisDrawer input={analysisInput} snapshot={analysisSnapshot} onClose={() => setAnalysisOpen(false)} />}
     {uploadOpen && universe && <Dialog title="Upload portfolio" onClose={() => setUploadOpen(false)}><ImportFlow lookup={lookupIn(universe)} onImport={load} /></Dialog>}
     {exportOpen && <Dialog title="Export portfolio" onClose={() => setExportOpen(false)}><div className="export-body"><p>Choose a file format, then the table to download.</p>
       <label className="export-format">File format<select aria-label="Export format" value={exportFormat} onChange={e => setExportFormat(e.target.value as TableFormat)}>{TABLE_FORMATS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}</select></label>
