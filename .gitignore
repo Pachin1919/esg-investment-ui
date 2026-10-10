@@ -164,3 +164,7 @@ __pycache__/
 data/raw/
 data/processed/
 outputs/
+
+# Browser regression artifacts
+/test-results/
+/playwright-report/
