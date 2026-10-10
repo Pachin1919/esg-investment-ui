@@ -94,8 +94,10 @@ def _store(tmp_path, with_fx: bool = True) -> DataStore:
                       "g": np.linspace(-3, 0, n), "g_across": 0.0, "g_within": 0.0}
                      ).to_csv(out / f"det_greenness_{market}.csv", index=False)
     if with_fx:
-        pd.DataFrame({"month": months, "pair": "TWDHKD", "rate": 0.25 * np.cumprod(1 + rng.normal(0, 0.01, T))}
-                     ).to_parquet(raw / "fx_monthly.parquet")
+        pd.concat([
+            pd.DataFrame({"month": months, "pair": "TWDHKD", "rate": 0.25 * np.cumprod(1 + rng.normal(0, 0.01, T))}),
+            pd.DataFrame({"month": months, "pair": "USDHKD", "rate": 7.8}),
+        ], ignore_index=True).to_parquet(raw / "fx_monthly.parquet")
     return DataStore(outputs=out, processed=tmp_path / "p", raw=raw)
 
 
@@ -122,13 +124,15 @@ def test_recommend_all_markets_trades_in_both(tmp_path):
     assert sum(t["capital_delta"] for t in d["trades"]) == pytest.approx(5000.0, abs=1e-4)
     assert d["after"]["g_avg"] > d["before"]["g_avg"]
     code, one = _post(store, holdings={"F000.HK": 6000.0, "F001.HK": 4000.0}, market="hk", green_score=5, kappa=0.0)
-    assert code == 200 and one["params"]["n_candidates"] == 12 and one["base_currency"] is None
+    assert code == 200 and one["params"]["n_candidates"] == 12 and one["base_currency"] == "HKD"
+    assert one["model_currency"] == "USD" and one["return_basis"] == "excess"
+    assert one["capital_currency"] == one["pricing_currency"] == "HKD"
     assert {t["market"] for t in one["trades"]} == {"hk"}
 
 
 def test_recommend_all_markets_needs_fx(tmp_path):
     code, d = _post(_store(tmp_path, with_fx=False), holdings={"F000.HK": 100.0}, market="all")
-    assert code == 503 and "TWDHKD" in d["detail"]
+    assert code == 503 and "USDHKD" in d["detail"]
 
 
 def test_industry_filter_and_filter_tree_across_markets(tmp_path):
