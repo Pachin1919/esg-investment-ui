@@ -168,6 +168,11 @@ def test_semantic_evidence_separate_from_dictionary(client):
     assert body["dictionary"]["firms"][0]["talk"] == 9
     assert body["dictionary"]["firms"][0]["greenwasher"] is True
     assert body["semantic_llm"]["coverage"] == {"firms": 1, "documents": 1}
+    from esgx.measures.greenwash import TALK_CUT, WALK_CUT
+    assert body["dictionary"]["methodology"]["talk_min"] == TALK_CUT
+    assert body["dictionary"]["methodology"]["walk_max"] == WALK_CUT
+    assert body["dictionary"]["methodology"]["gap_is_classifier"] is False
+    assert body["semantic_llm"]["methodology"]["classification"] == "not_provided"
     unknown = http.get("/api/talk-walk?firm_id=9999.HK").json()
     assert unknown["assessment_status"] == "insufficient_data"
     assert unknown["semantic_llm"]["firms"] == [] and unknown["dictionary"]["firms"] == []
@@ -181,6 +186,18 @@ def test_dated_fx_real_source_no_fallback(client):
     row = http.get("/api/data/fx").json()["rates"][0]
     assert row["date"] == "2023-12-29" and row["rate"] == 7.8 and row["source"] == "Historical official source"
     assert row["is_latest"] is False
+
+
+@pytest.mark.parametrize("talk,walk,flagged", [(6, 1, False), (9, 5, False), (9, 2, True), (8, 10 / 3, True), (7.999, 0, False), (9, 10 / 3 + 0.0001, False)])
+def test_explained_rule_matches_engine_double_condition(talk, walk, flagged):
+    from esgx.measures.greenwash import greenwashing_table
+    talk_data = pd.DataFrame([{"firm_id": "0002.HK", "year": 2025, "talk": talk, "talk_unfiltered": talk,
+                               "n_docs": 1, "n_words": 1000, "n_claim": 10, "claim_per_1000": 10, "risk_context_share": 0}])
+    walk_data = pd.DataFrame([{"firm_id": "0002.HK", "year": 2025, "sector": "Utilities", "walk": walk,
+                               "intensity": 1, "walk_intensity_trend": None, "walk_emission_trend": None, "walk_composite": walk}])
+    result = greenwashing_table(talk_data, walk_data).iloc[0]
+    assert bool(result.greenwasher) is flagged
+    assert result.gap == pytest.approx(talk - walk)
 
 
 def test_mounted_bundle_drives_complete_recommendation(client):
