@@ -162,14 +162,14 @@ def records(df: pd.DataFrame, columns: list[str] | None = None) -> list[dict[str
     for row in df.to_dict(orient="records"):
         clean = {}
         for k, v in row.items():
-            if isinstance(v, float) and math.isnan(v):
+            if hasattr(v, "item") and v is not pd.NA and v is not pd.NaT:
+                v = v.item()
+            if isinstance(v, float) and not math.isfinite(v):
                 clean[k] = None
             elif isinstance(v, pd.Timestamp):
                 clean[k] = v.isoformat()
             elif v is pd.NaT or v is pd.NA:
                 clean[k] = None
-            elif hasattr(v, "item"):
-                clean[k] = v.item()
             else:
                 clean[k] = v
         out.append(clean)
